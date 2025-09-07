@@ -1,3 +1,12 @@
+## Proyecto DRINKWARE (Proyecto Integrador I 2025_2)
+
+Elaborado por:
+- Ana María Garzón Giraldo
+- Duván Antonio Arboleda Botero 
+- Karen Vanessa Paternina Yepes
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
