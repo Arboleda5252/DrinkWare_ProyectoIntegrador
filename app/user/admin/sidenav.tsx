@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import NavLinks from '@/app/user/nav-links';
+import NavLinks from '@/app/user/admin/nav-links';
 import Image from 'next/image';
 
 

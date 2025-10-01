@@ -5,16 +5,16 @@ import { FcSalesPerformance } from "react-icons/fc";
 const links = [
   { 
     name: 'Gestión de Usuarios', 
-    href: '/user', 
+    href: '/user/admin', 
     icon: <FaUsersCog className="w-7"/> 
   },
   {
     name: 'Gestión de Productos',
-    href: '/user/products',
+    href: '/user/admin/products',
     icon: <RiArticleFill className="w-7"/>,
   },
   { name: 'Reporte de Ventas', 
-    href: '/user/repVentas', 
+    href: '/user/admin/repVentas', 
     icon: <FcSalesPerformance className="w-7"/>
   },
 ];
