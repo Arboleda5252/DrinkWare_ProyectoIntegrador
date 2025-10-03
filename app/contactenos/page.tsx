@@ -105,13 +105,6 @@ export default function Page() {
         </form>
       </section>
 
-      {/* Pie de página */}
-      <footer className="bg-gray-900 text-white text-center py-6">
-        <p>
-          &copy; 2025 DrinkWare - Distribuidora de Licores. Todos los derechos
-          reservados.
-        </p>
-      </footer>
     </main>
   );
 }
