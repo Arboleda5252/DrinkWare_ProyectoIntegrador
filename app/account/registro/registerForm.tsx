@@ -9,23 +9,38 @@ export default function RegisterForm() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
+    // Mapeo de campos del formulario
     const payload = {
       nombre: String(fd.get("nombre") || ""),
       apellido: String(fd.get("apellido") || ""),
       tipo_documento: String(fd.get("tipo_documento") || ""),
       documento: String(fd.get("documento") || ""),
-      correo_electronico: String(fd.get("correo_electronico") || ""),
+      correo: String(fd.get("correo_electronico") || ""),
       telefono: String(fd.get("telefono") || ""),
-      nombre_usuario: String(fd.get("nombre_usuario") || ""),
-      contrasena: String(fd.get("contrasena") || ""),
+      nombreusuario: String(fd.get("nombre_usuario") || ""),
+      password: String(fd.get("contrasena") || ""),
       fecha_nacimiento: String(fd.get("fecha_nacimiento") || ""),
       ciudad: String(fd.get("ciudad") || ""),
       direccion: String(fd.get("direccion") || ""),
+      id_rol: 1,
     };
 
     setLoading(true);
     try {
-      console.log(payload);
+      const res = await fetch("/api/usuarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        alert("Usuario registrado correctamente");
+        e.currentTarget.reset();
+      } else {
+        alert(json.error || "Error al registrar usuario");
+      }
+    } catch (err) {
+      alert("Error inesperado");
     } finally {
       setLoading(false);
     }
@@ -37,9 +52,6 @@ export default function RegisterForm() {
       className="bg-white rounded-2xl shadow-lg p-8"
     >
       <h1 className="text-2xl font-bold text-center">Crear cuenta en DrinkWare</h1>
-      <p className="text-sm text-gray-500 text-center mt-1">
-        Completa tus datos para registrarte
-      </p>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>

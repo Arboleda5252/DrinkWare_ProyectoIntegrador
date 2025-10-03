@@ -1,35 +1,36 @@
 "use client";
 
 import * as React from "react";
+import { FaSpinner } from "react-icons/fa";
 
 type Usuario = {
-  id: number;                
+  id: number;
   nombre: string;
   apellido: string;
-  correo: string | null;     
+  correo: string | null;
   documento: string | null;
-  rol: string | null;   
+  rol: string | null;
   telefono: string | null;
   ciudad: string | null;
   direccion: string | null;
   fecha_nacimiento: string | null;
 };
 
-const ICON = "h-4 w-4";
+//Ver, Editar, Eliminar
 const Eye = () => (
-  <svg className={ICON} viewBox="0 0 24 24" fill="none">
+  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
     <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" stroke="currentColor" strokeWidth="2" />
     <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
   </svg>
 );
 const Pencil = () => (
-  <svg className={ICON} viewBox="0 0 24 24" fill="none">
+  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
     <path d="M12 20h9" stroke="currentColor" strokeWidth="2" />
     <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" strokeWidth="2" />
   </svg>
 );
 const Trash = () => (
-  <svg className={ICON} viewBox="0 0 24 24" fill="none">
+  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
     <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" stroke="currentColor" strokeWidth="2" />
   </svg>
 );
@@ -43,8 +44,7 @@ export default function UsersPage() {
   const [cargando, setCargando] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Modal para editar rol
-  // Modal para ver usuario
+  // Modal para editar rol y usario
   const [modalVerAbierto, setModalVerAbierto] = React.useState(false);
   const [usuarioVer, setUsuarioVer] = React.useState<Usuario | null>(null);
   const [modalAbierto, setModalAbierto] = React.useState(false);
@@ -77,13 +77,13 @@ export default function UsersPage() {
     };
   }, []);
 
-  // Roles para el select
+  // Roles
   const roles = React.useMemo(() => {
     const set = new Set<string>(usuarios.map(u => u.rol ?? "Sin rol"));
     return ["Todos", ...Array.from(set).sort((a, b) => a.localeCompare(b, "es"))];
   }, [usuarios]);
 
-  // Filtrado
+  // Busqueda
   const filtrados = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return usuarios.filter(u => {
@@ -104,9 +104,7 @@ export default function UsersPage() {
     });
   }, [usuarios, query, filtroRol]);
 
-  // Acciones
-
-  // Al abrir el modal, obtener datos completos del usuario
+  // Ver información del usuario
   const verUsuario = async (u: Usuario) => {
     setUsuarioVer(null);
     setModalVerAbierto(true);
@@ -116,10 +114,10 @@ export default function UsersPage() {
       if (res.ok && json?.ok && json.data) {
         setUsuarioVer(json.data);
       } else {
-        setUsuarioVer(u); // fallback a datos básicos
+        setUsuarioVer(u);
       }
     } catch {
-      setUsuarioVer(u); // fallback a datos básicos
+      setUsuarioVer(u);
     }
   };
 
@@ -128,18 +126,18 @@ export default function UsersPage() {
     setUsuarioVer(null);
   };
 
+  // Editar rol del usuario
   const editarUsuario = (u: Usuario) => {
     setUsuarioEditar(u);
     setErrorModal(null);
     setModalAbierto(true);
     setCargandoRoles(true);
-    // Cargar roles disponibles
-    fetch("/api/roles")
+    fetch("/api/roles")  // Cargar roles disponibles
       .then(res => res.json())
       .then(json => {
         if (json?.ok && Array.isArray(json.data)) {
           setRolesDisponibles(json.data);
-          // Buscar el id_rol actual del usuario por nombre
+          // Buscar el id_rol actual
           const rolActual = json.data.find((r: Rol) => r.rol === u.rol);
           setNuevoRolId(rolActual ? rolActual.id_rol : null);
         } else {
@@ -174,7 +172,7 @@ export default function UsersPage() {
       });
       const json = await res.json();
       if (!res.ok || !json?.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-      // Actualizar el rol mostrado en la tabla
+      // Actualizar el rol
       const rolNombre = rolesDisponibles.find(r => r.id_rol === nuevoRolId)?.rol ?? "";
       setUsuarios(prev => prev.map(u => u.id === usuarioEditar.id ? { ...u, rol: rolNombre } : u));
       cerrarModal();
@@ -221,11 +219,16 @@ export default function UsersPage() {
                 </div>
               </>
             ) : (
-              <div className="text-center p-8">Cargando datos…</div>
+              <div className="text-center p-8">
+                <div className="flex items-center justify-center gap-2">
+                  <FaSpinner className="animate-spin text-xl text-gray-500" />
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
+
       {/* Modal para editar rol */}
       {modalAbierto && usuarioEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
@@ -246,20 +249,31 @@ export default function UsersPage() {
                   <option key={r.id_rol} value={r.id_rol}>{r.rol}</option>
                 ))}
               </select>
+              <p className="mt-2 text-xs text-gray-600">
+                ¿Estás seguro de que deseas cambiar el rol de este usuario? Esta acción puede modificar sus permisos, responsabilidades y acceso dentro del sistema.
+              </p>
             </div>
             {errorModal && <div className="text-red-600 text-sm mb-2">{errorModal}</div>}
             <button
               onClick={guardarRol}
-              className="w-full rounded bg-gray-900 text-white py-2 font-semibold hover:bg-sky-500 disabled:opacity-60"
+              className="w-full flex items-center justify-center gap-2 rounded bg-gray-900 text-white py-2 font-semibold hover:bg-sky-500 disabled:opacity-60"
               disabled={guardando || !nuevoRolId}
             >
-              {guardando ? "Guardando..." : "Guardar"}
+              {guardando ? (
+                "Guardando..."
+              ) : (
+                <>
+                  ✅ Confirmar cambio de rol
+                </>
+              )}
             </button>
           </div>
         </div>
       )}
+
+
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* Título + CTA */}
+        {/* Titulo */}
         <header className="flex items-center justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de usuarios</h1>
           <button
@@ -270,7 +284,7 @@ export default function UsersPage() {
           </button>
         </header>
 
-        {/* Filtros */}
+        {/* Buscar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
@@ -300,6 +314,7 @@ export default function UsersPage() {
           </select>
         </div>
 
+        {/* Tabla de usuarios */}
         <div className="overflow-hidden rounded-2xl bg-white shadow">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -318,7 +333,10 @@ export default function UsersPage() {
                 {cargando && (
                   <tr>
                     <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
-                      Cargando…
+                      <div className="flex items-center justify-center gap-2">
+                        <FaSpinner className="animate-spin text-xl text-gray-500" />
+                        <span>Cargando…</span>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -378,7 +396,7 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Pie */}
+        {/* Mostrar total de usuarios*/}
         {!cargando && !error && (
           <p className="text-sm text-gray-500">
             Mostrando <span className="font-medium">{filtrados.length}</span> de{" "}

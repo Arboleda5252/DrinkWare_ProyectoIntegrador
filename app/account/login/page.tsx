@@ -1,9 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Page() {
   const [loading, setLoading] = React.useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -12,8 +15,23 @@ export default function Page() {
     const password = String(formData.get("password") || "");
 
     setLoading(true);
-    try {
-      console.log({ username, password });
+    
+    try
+    {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombreusuario: username, password }),        
+      });
+      
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        router.push("/user");
+      } else {
+        alert(json.error || "Credenciales incorrectas");
+      }
+    } catch (err) {
+      alert("Error inesperado");
     } finally {
       setLoading(false);
     }
@@ -24,7 +42,6 @@ export default function Page() {
       <section className="w-full max-w-sm">
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-8">
           <h1 className="text-2xl font-bold text-center">Iniciar sesión</h1>
-
           <div className="mt-6 space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700">
@@ -40,7 +57,6 @@ export default function Page() {
                 className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
-
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Contraseña
@@ -56,7 +72,6 @@ export default function Page() {
               />
             </div>
           </div>
-
           <button
             type="submit"
             disabled={loading}
@@ -65,6 +80,12 @@ export default function Page() {
             {loading ? "Entrando…" : "Entrar"}
           </button>
         </form>
+        <div className="mt-4 text-center text-sm text-gray-600">
+          ¿No tienes cuenta?{" "}
+          <Link href="/account/registro" className="text-sky-600 hover:underline font-semibold">
+            Regístrate aquí
+          </Link>
+        </div>
       </section>
     </main>
   );

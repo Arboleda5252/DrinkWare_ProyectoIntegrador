@@ -16,7 +16,6 @@ type UsuarioDetalle = {
   tipo_documento: string | null;
   nombreusuario: string | null;
   fecha_nacimiento: string | null; 
-  mediopago: string | null;
   id_rol: number | null;
   rol: string | null;
 };
@@ -51,7 +50,6 @@ export async function GET(
         u.tipo_documento,
         u.nombreusuario,
         u.fecha_nacimiento,
-        u.mediopago,
         u.id_rol,
         r.rol
       FROM usuario AS u
