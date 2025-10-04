@@ -1,48 +1,60 @@
-import { BiAngry } from "react-icons/bi";
+"use client";
+
+import * as React from "react";
+
+type FormState = {
+  nombre: string;
+  correo: string;
+  mensaje: string;
+};
 
 export default function Page() {
+const [form, setForm] = React.useState<FormState>({
+    nombre: "",
+    correo: "",
+    mensaje: "",
+  });
+  const [enviando, setEnviando] = React.useState(false);
+  const [ok, setOk] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const onChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnviando(true);
+    setOk(null);
+    setError(null);
+
+    try {
+      // Envía a tu endpoint (ajusta la URL)
+      const res = await fetch("/api/contacto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false)
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
+
+      setOk("¡Mensaje enviado correctamente!");
+      setForm({ nombre: "", correo: "", mensaje: "" });
+    } catch (err: any) {
+      setError(err?.message ?? "No se pudo enviar el mensaje.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   return (
    <main className="bg-gray-100 font-sans">
-      {/* Navbar */}
-      <nav className="fixed top-0 left-0 w-full bg-gray-900 shadow-lg z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
-          {/* Logo */}
-          <a
-            href="/"
-            className="text-2xl font-extrabold tracking-wide bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 bg-clip-text text-transparent animate-gradient"
-          >
-            DrinkWare
-          </a>
-
-          {/* Menú */}
-          <ul className="flex gap-8">
-            <li>
-              <a
-                href="/"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Inicio
-              </a>
-            </li>
-            <li>
-              <a
-                href="/productos"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Productos
-              </a>
-            </li>
-            <li>
-              <a
-                href="/contacto"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Contáctenos
-              </a>
-            </li>
-          </ul>
-        </div>
-      </nav>
+      
 
       {/* Encabezado */}
       <header className="bg-gradient-to-r from-purple-700 to-pink-600 text-white py-16 text-center shadow-lg mt-20">
@@ -75,34 +87,53 @@ export default function Page() {
         </div>
 
         {/* Formulario */}
-        <form className="bg-white rounded-2xl shadow-lg p-8">
-          <h2 className="text-3xl font-bold text-purple-700 text-center">
-            Escríbenos
-          </h2>
-          <div className="mt-6 space-y-4">
-            <input
-              type="text"
-              placeholder="Tu nombre"
-              className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-pink-500"
-            />
-            <input
-              type="email"
-              placeholder="Tu correo"
-              className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-pink-500"
-            />
-            <textarea
-              placeholder="Tu mensaje"
-              rows="5"
-              className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-pink-500"
-            ></textarea>
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-500 text-white font-bold py-3 rounded-lg shadow-lg hover:opacity-90 transition"
-            >
-              Enviar mensaje
-            </button>
-          </div>
-        </form>
+            <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow-lg p-8">
+      <h2 className="text-3xl font-bold text-purple-700 text-center">
+        Escríbenos
+      </h2>
+
+      <div className="mt-6 space-y-4">
+        <input
+          name="nombre"
+          type="text"
+          placeholder="Tu nombre"
+          value={form.nombre}
+          onChange={onChange}
+          required
+          className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-pink-500"
+        />
+
+        <input
+          name="correo"
+          type="email"
+          placeholder="Tu correo"
+          value={form.correo}
+          onChange={onChange}
+          required
+          className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-pink-500"
+        />
+
+        <textarea
+          name="mensaje"
+          placeholder="Tu mensaje"
+          rows={5}
+          value={form.mensaje}
+          onChange={onChange}
+          className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-pink-500"
+        />
+
+        <button
+          type="submit"
+          disabled={enviando}
+          className="w-full bg-gradient-to-r from-purple-600 to-pink-500 text-white font-bold py-3 rounded-lg shadow-lg hover:opacity-90 transition disabled:opacity-60"
+        >
+          {enviando ? "Enviando..." : "Enviar mensaje"}
+        </button>
+
+        {ok && <p className="text-green-600 text-sm">{ok}</p>}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+      </div>
+    </form>
       </section>
 
     </main>

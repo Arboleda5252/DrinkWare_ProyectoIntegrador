@@ -3,55 +3,6 @@ import { BiAngry } from "react-icons/bi";
 export default function Page() {
   return (
      <main className="bg-gray-100 font-sans">
-      {/* Navbar */}
-      <nav className="fixed top-0 left-0 w-full bg-gray-900 shadow-lg z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
-          {/* Logo */}
-          <a
-            href="/"
-            className="text-2xl font-extrabold tracking-wide bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 bg-clip-text text-transparent animate-gradient"
-          >
-            DrinkWare
-          </a>
-
-          {/* Menú */}
-          <ul className="flex gap-8">
-            <li>
-              <a
-                href="/"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Inicio
-              </a>
-            </li>
-            <li>
-              <a
-                href="/productos"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Productos
-              </a>
-            </li>
-            <li>
-              <a
-                href="/sobre-nosotros"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Sobre Nosotros
-              </a>
-            </li>
-            <li>
-              <a
-                href="/contacto"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Contáctenos
-              </a>
-            </li>
-          </ul>
-        </div>
-      </nav>
-
       {/* Encabezado */}
       <header className="bg-gradient-to-r from-purple-700 to-pink-600 text-white py-16 text-center shadow-lg mt-20">
         <h1 className="text-5xl font-extrabold tracking-wide">Sobre Nosotros</h1>
