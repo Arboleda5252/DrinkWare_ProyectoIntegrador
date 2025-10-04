@@ -16,7 +16,6 @@ type Usuario = {
   fecha_nacimiento: string | null;
 };
 
-//Ver, Editar, Eliminar
 const Eye = () => (
   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
     <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" stroke="currentColor" strokeWidth="2" />
@@ -132,12 +131,11 @@ export default function UsersPage() {
     setErrorModal(null);
     setModalAbierto(true);
     setCargandoRoles(true);
-    fetch("/api/roles")  // Cargar roles disponibles
+    fetch("/api/roles")  
       .then(res => res.json())
       .then(json => {
         if (json?.ok && Array.isArray(json.data)) {
           setRolesDisponibles(json.data);
-          // Buscar el id_rol actual
           const rolActual = json.data.find((r: Rol) => r.rol === u.rol);
           setNuevoRolId(rolActual ? rolActual.id_rol : null);
         } else {
@@ -172,7 +170,6 @@ export default function UsersPage() {
       });
       const json = await res.json();
       if (!res.ok || !json?.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-      // Actualizar el rol
       const rolNombre = rolesDisponibles.find(r => r.id_rol === nuevoRolId)?.rol ?? "";
       setUsuarios(prev => prev.map(u => u.id === usuarioEditar.id ? { ...u, rol: rolNombre } : u));
       cerrarModal();
@@ -198,7 +195,6 @@ export default function UsersPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
-      {/* Modal para ver usuario */}
       {modalVerAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-xl shadow-lg p-6 min-w-[320px] max-w-xs relative">
@@ -275,13 +271,7 @@ export default function UsersPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Titulo */}
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de usuarios</h1>
-          <button
-            onClick={() => alert("Abrir formulario de nuevo usuario")}
-            className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-400"
-          >
-            + Nuevo Usuario
-          </button>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de usuarios</h1>         
         </header>
 
         {/* Buscar */}
@@ -396,7 +386,7 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Mostrar total de usuarios*/}
+        {/* total de usuarios*/}
         {!cargando && !error && (
           <p className="text-sm text-gray-500">
             Mostrando <span className="font-medium">{filtrados.length}</span> de{" "}

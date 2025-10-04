@@ -1,41 +1,10 @@
-import { BiAngry } from "react-icons/bi";
+
+import Image from 'next/image';
+
 
 export default function Page() {
   return (
-<main className="bg-gray-100 font-sans">
-      {/* Navbar */}
-      <nav className="fixed top-0 left-0 w-full bg-gray-900 shadow-lg z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
-          {/* Logo animado */}
-          <a
-            href="/"
-            className="text-2xl font-extrabold tracking-wide bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 bg-clip-text text-transparent animate-gradient"
-          >
-            DrinkWare
-          </a>
-
-          {/* Menú */}
-          <ul className="flex gap-8">
-            <li>
-              <a
-                href="/"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Inicio
-              </a>
-            </li>
-            <li>
-              <a
-                href="/productos"
-                className="text-white font-bold hover:text-pink-500 transition-colors"
-              >
-                Productos
-              </a>
-            </li>
-          </ul>
-        </div>
-      </nav>
-
+    <main className="bg-gray-100 font-sans">
       {/* Encabezado */}
       <header className="bg-gradient-to-r from-purple-700 to-pink-600 text-white py-16 text-center shadow-lg mt-20">
         <h1 className="text-5xl font-extrabold tracking-wide">
@@ -50,10 +19,12 @@ export default function Page() {
       <section className="max-w-7xl mx-auto px-6 py-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
         {/* Aguardiente */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <img
-            src="https://upload.wikimedia.org/wikipedia/commons/6/6e/Aguardiente_Antioque%C3%B1o_Bottle.png"
+          <Image
+            src="/productos/agt1-2.png"
             alt="Aguardiente Antioqueño"
-            className="w-full h-64 object-contain bg-gray-50"
+            width={100}
+            height={100}
+            className='w-full h-64 object-contain'
           />
           <div className="p-6 text-center">
             <h2 className="text-2xl font-bold text-purple-700">
@@ -67,10 +38,12 @@ export default function Page() {
 
         {/* Ron Medellín */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <img
-            src="https://misterlicor.com/cdn/shop/products/ronmedellin-1_1024x1024.jpg"
+          <Image
+            src="/productos/ronMed1-2.png"
             alt="Ron Medellín"
-            className="w-full h-64 object-contain bg-gray-50"
+            width={100}
+            height={100}
+            className="w-full h-64 object-contain"
           />
           <div className="p-6 text-center">
             <h2 className="text-2xl font-bold text-purple-700">Ron Medellín</h2>
@@ -82,10 +55,12 @@ export default function Page() {
 
         {/* Ron Viejo de Caldas */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <img
-            src="https://ronviejo.com/wp-content/uploads/2021/03/RVC-3.jpg"
+          <Image
+            src="/productos/ronCaldasLitro.png"           
             alt="Ron Viejo de Caldas"
-            className="w-full h-64 object-contain bg-gray-50"
+            width={100}
+            height={100}
+            className="w-full h-64 object-contain"
           />
           <div className="p-6 text-center">
             <h2 className="text-2xl font-bold text-purple-700">
@@ -99,10 +74,12 @@ export default function Page() {
 
         {/* Cerveza Poker */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <img
-            src="https://m.media-amazon.com/images/I/71nQjA7SkgL._AC_UF894,1000_QL80_.jpg"
+          <Image
+            src="/productos/Poker0.png"
+            width={100}
+            height={100}
             alt="Cerveza Poker"
-            className="w-full h-64 object-contain bg-gray-50"
+            className="w-full h-64 object-contain"
           />
           <div className="p-6 text-center">
             <h2 className="text-2xl font-bold text-purple-700">Cerveza Poker</h2>
@@ -114,10 +91,12 @@ export default function Page() {
 
         {/* Cerveza Águila */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <img
-            src="https://m.media-amazon.com/images/I/51uzIuPqTQL.jpg"
+          <Image
+            src="/productos/aguila0.png"
             alt="Cerveza Águila"
-            className="w-full h-64 object-contain bg-gray-50"
+            width={100}
+            height={100}
+            className="w-full h-64 object-contain"
           />
           <div className="p-6 text-center">
             <h2 className="text-2xl font-bold text-purple-700">Cerveza Águila</h2>
@@ -129,10 +108,12 @@ export default function Page() {
 
         {/* Refajo Colombiano */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <img
-            src="https://mercaldas.vtexassets.com/arquivos/ids/205181-800-auto?v=637863980716000000&width=800&height=auto&aspect=true"
+          <Image
+            src="/productos/refajox6.png"
+            width={100}
+            height={100}
             alt="Refajo Colombiano"
-            className="w-full h-64 object-contain bg-gray-50"
+            className="w-full h-64 object-contain"
           />
           <div className="p-6 text-center">
             <h2 className="text-2xl font-bold text-purple-700">

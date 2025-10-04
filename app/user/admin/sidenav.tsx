@@ -17,7 +17,7 @@ export default function SideNav() {
             alt="Logo"
             width={50}
             height={50}
-            className='brightness-0 invert'
+            className='w full brightness-0 invert'
           />
           <p className="text-[25px]">Admin</p>
         </div>

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from '@/app/libs/database';
 
-// Asegura runtime Node (pg no funciona en Edge)
 export const runtime = "nodejs";
 
 type Usuario = { idusuario: number; nombreusuario: string };
@@ -13,7 +12,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Faltan credenciales" }, { status: 400 });
     }
 
-    // Comparación directa (texto plano)
     const { rows } = await sql<Usuario>(
       `SELECT idusuario, nombreusuario
          FROM public.usuario

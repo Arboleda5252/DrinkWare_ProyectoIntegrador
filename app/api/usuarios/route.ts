@@ -47,8 +47,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Body inválido' }, { status: 400 });
   }
 
-  // Campos permitidos para crear usuario
-  // Nuevo modelo: password requerido, correo -> email, sin mediopago
   const campos = [
     'nombre', 'apellido', 'tipo_documento', 'documento', 'telefono', 'correo', 'ciudad', 'direccion',
     'nombreusuario', 'password', 'fecha_nacimiento', 'id_rol'

@@ -4,12 +4,48 @@ import * as React from "react";
 
 export default function RegisterForm() {
   const [loading, setLoading] = React.useState(false);
+  const [edadError, setEdadError] = React.useState<string>("");
+
+  // Restriccion de fecha
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  const maxDate18 = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  function validarEdad(input: HTMLInputElement) {
+    const v = input.value;
+    if (!v) {
+      setEdadError("");
+      input.setCustomValidity("");
+      return;
+    }
+    const [yy, mm, dd] = v.split("-").map(Number);
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - yy;
+    const mes = hoy.getMonth() + 1;
+    const dia = hoy.getDate();
+    if (mes < mm || (mes === mm && dia < dd)) edad--;
+
+    if (edad < 18) {
+      const msg = "Acceso restringido: solo para mayores de 18 años.";
+      setEdadError(msg);
+      input.setCustomValidity("Debes ser mayor de 18 años.");
+    } else {
+      setEdadError("");
+      input.setCustomValidity("");
+    }
+    input.reportValidity();
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Restriccion de enviar registro si es menor de edad
+    if (!e.currentTarget.checkValidity()) {
+      e.currentTarget.reportValidity();
+      return;
+    }
+
     const fd = new FormData(e.currentTarget);
 
-    // Mapeo de campos del formulario
     const payload = {
       nombre: String(fd.get("nombre") || ""),
       apellido: String(fd.get("apellido") || ""),
@@ -36,6 +72,7 @@ export default function RegisterForm() {
       if (res.ok && json.ok) {
         alert("Usuario registrado correctamente");
         e.currentTarget.reset();
+        setEdadError(""); 
       } else {
         alert(json.error || "Error al registrar usuario");
       }
@@ -47,10 +84,7 @@ export default function RegisterForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white rounded-2xl shadow-lg p-8"
-    >
+    <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-8">
       <h1 className="text-2xl font-bold text-center">Crear cuenta en DrinkWare</h1>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -187,8 +221,24 @@ export default function RegisterForm() {
             name="fecha_nacimiento"
             type="date"
             required
+            max={maxDate18}
+            onInput={(e) => validarEdad(e.currentTarget)}
+            onChange={(e) => validarEdad(e.currentTarget)}
             className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            aria-invalid={Boolean(edadError)}
+            aria-describedby={edadError ? "msg-edad" : undefined}
           />
+
+          {edadError && (
+            <p
+              id="msg-edad"
+              role="alert"
+              aria-live="polite"
+              className="mt-2 text-xs font-semibold text-red-600"
+            >
+              {edadError}
+            </p>
+          )}
         </div>
 
         <div>

@@ -25,7 +25,7 @@ function parseId(idStr: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-// Ver más información de un usuario
+// GET
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -69,8 +69,7 @@ export async function GET(
   }
 }
 
-
-// Actualizar datos del usuario (datos personales o rol)
+// PUT
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const id = parseId(params.id);
   if (!id) {
@@ -99,7 +98,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
   }
 
-  // Permitir actualizar el rol si viene en el body
   if (body.id_rol !== undefined) {
     camposActualizar.push('id_rol');
     valoresActualizar.push(body.id_rol);
@@ -109,7 +107,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ ok: false, error: 'No hay campos para actualizar' }, { status: 400 });
   }
 
-  // Construir query dinámica
   const setClause = camposActualizar.map((campo, i) => `${campo} = $${i + 1}`).join(', ');
   const query = `UPDATE usuario SET ${setClause} WHERE idusuario = $${camposActualizar.length + 1}`;
   valoresActualizar.push(id);

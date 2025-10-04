@@ -9,7 +9,7 @@ export type SessionUser = { idusuario: number; nombreusuario: string };
 export async function signSession(user: SessionUser) {
   return await new SignJWT({ nombreusuario: user.nombreusuario })
     .setProtectedHeader({ alg: "HS256" })
-    .setSubject(String(user.idusuario)) // sub debe ser string
+    .setSubject(String(user.idusuario)) 
     .setExpirationTime("7d")
     .sign(secret);
 }
@@ -26,7 +26,6 @@ export async function verifySession(token: string) {
 }
 
 export async function getUserFromSession() {
-  // Validar que estamos en entorno de servidor
   if (typeof window !== "undefined") {
     throw new Error("getUserFromSession solo puede usarse en el servidor (Server Component, API Route o Server Action)");
   }
@@ -37,14 +36,13 @@ export async function getUserFromSession() {
   const v = await verifySession(token);
   if (!v) return null;
 
-  // Trae el flag activo y filtra
   const { rows } = await sql<{ idusuario: number; nombreusuario: string; activo: boolean }>(
     "SELECT idusuario, nombreusuario, activo FROM public.usuario WHERE idusuario = $1 LIMIT 1",
     [v.idusuario]
   );
 
   const u = rows[0];
-  if (!u || !u.activo) return null; // 👈 si inactivo, el Navbar no mostrará nada
+  if (!u || !u.activo) return null; 
 
   return { idusuario: u.idusuario, nombreusuario: u.nombreusuario };
 }
