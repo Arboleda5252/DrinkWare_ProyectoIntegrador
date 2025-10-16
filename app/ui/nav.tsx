@@ -25,7 +25,7 @@ export default async function Nav() {
         <div className="basis-1/2">
             <div className='flex justify-end space-x-4 text-white'>
                 <div className='justify-center'>
-                    <Link href="/contactenos" className='flex flex-col items-center pr-4 px-2 hover:text-sky-300' >
+                    <Link href="/contactenos" className='flex flex-col items-center pr-4 px-2 hover:text-sky-400' >
                         <MdOutlineLiveHelp className='text-4xl my-1'/>
                         <p>Contáctenos</p> 
                     </Link> 
@@ -37,10 +37,9 @@ export default async function Nav() {
                     </Link> 
                 </div>
                 {user ? (
-                  <div className="flex flex-col items-center pr-4 px-2 text-right">
-                    <FaUser className="text-4xl my-1" />
-                    <p className="text-sm font-semibold">{user.nombreusuario}</p>
+                  <div className="flex flex-col items-center pr-4 px-2 text-right hover:text-sky-400">
                     <LogoutButton />
+                    <p className="text-sm font-semibold hover:text-sky-400">{user.nombreusuario}</p> 
                   </div>
                 ) : (
                   <div className='justify-center'>

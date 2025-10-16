@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { CiPower } from "react-icons/ci";
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -32,13 +33,17 @@ export default function LogoutButton() {
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleLogout}
-      disabled={loading}
-      className="mt-1 rounded-lg border border-white/40 px-3 py-1 text-sm hover:bg-white hover:text-black transition disabled:opacity-60"
-    >
-      {loading ? "Saliendo..." : "Cerrar sesión"}
-    </button>
+    <div>
+      <button
+        type="button"
+        onClick={handleLogout}
+        disabled={loading}
+        className="mt-1 flex items-center justify-center rounded-lg border border-white/40 px-2 py-1 text-sm transition disabled:opacity-60 "
+        aria-label={loading ? "Saliendo..." : "Cerrar sesión"}
+        title={loading ? "Saliendo..." : "Cerrar sesión"}
+      >
+        <CiPower className="text-3xl text-center hover:text-sky-400 hover:border-sky-400" />
+      </button>
+    </div>
   );
 }
