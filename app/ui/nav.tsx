@@ -12,7 +12,7 @@ export default async function Nav() {
     <nav className="p-4 bg-black text-white space-x-4 ">
       <div className="flex flex-row">
         <div className="basis-1/2">
-          <Link href="/">
+          <Link href={user ? "/user" : "/"}>
             <Image
               src="/Logos/Logo2Drink.png"
               alt="Logo"
@@ -39,7 +39,7 @@ export default async function Nav() {
                 {user ? (
                   <div className="flex flex-col items-center pr-4 px-2 text-right hover:text-sky-400">
                     <LogoutButton />
-                    <p className="text-sm font-semibold hover:text-sky-400">{user.nombreusuario}</p> 
+                    <p className="text-sm font-semibold hover:text-sky-400">{user.nombre || user.nombreusuario}</p> 
                   </div>
                 ) : (
                   <div className='justify-center'>

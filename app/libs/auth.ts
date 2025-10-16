@@ -79,12 +79,12 @@ export async function getUserFromSession() {
   const v = await verifySession(token);
   if (!v) return null;
 
-  const { rows } = await sql<{ idusuario: number; nombreusuario: string; activo: boolean }>(
-    "SELECT idusuario, nombreusuario, activo FROM public.usuario WHERE idusuario = $1 LIMIT 1",
+  const { rows } = await sql<{ idusuario: number; nombreusuario: string; nombre: string; activo: boolean }>(
+    "SELECT idusuario, nombreusuario, nombre, activo FROM public.usuario WHERE idusuario = $1 LIMIT 1",
     [v.idusuario]
   );
   const u = rows[0];
 
   if (!u || !u.activo) return null;
-  return { idusuario: u.idusuario, nombreusuario: u.nombreusuario };
+  return { idusuario: u.idusuario, nombreusuario: u.nombreusuario, nombre: u.nombre };
 }
