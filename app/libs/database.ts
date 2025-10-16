@@ -4,7 +4,7 @@ declare global {
   var pgPool: Pool | undefined;
 }
 
-export const pool: Pool =
+ const pool: Pool =
   global.pgPool ??
   new Pool({
     user: 'postgres',

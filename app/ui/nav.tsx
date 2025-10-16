@@ -3,8 +3,11 @@ import Image from 'next/image';
 import { MdOutlineLiveHelp } from "react-icons/md";
 import { AiFillProduct } from "react-icons/ai";
 import { FaUser } from "react-icons/fa";
+import { getUserFromSession } from "@/app/libs/auth";
+import LogoutButton from "./logout-button";
 
-export default function Nav() {
+export default async function Nav() {
+  const user = await getUserFromSession();
   return (
     <nav className="p-4 bg-black text-white space-x-4 ">
       <div className="flex flex-row">
@@ -33,12 +36,20 @@ export default function Nav() {
                         <p>Productos</p> 
                     </Link> 
                 </div>
-                <div className='justify-center'>
+                {user ? (
+                  <div className="flex flex-col items-center pr-4 px-2 text-right">
+                    <FaUser className="text-4xl my-1" />
+                    <p className="text-sm font-semibold">{user.nombreusuario}</p>
+                    <LogoutButton />
+                  </div>
+                ) : (
+                  <div className='justify-center'>
                     <Link href="/account" className='flex flex-col items-center pr-4 px-2 hover:text-sky-400' >
                         <FaUser className='text-4xl my-1'/>
                         <p>Mi cuenta</p> 
                     </Link> 
-                </div>
+                  </div>
+                )}
             </div>
         </div>
       </div>

@@ -21,7 +21,8 @@ export default function Page() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombreusuario: username, password }),        
+        credentials: "include",
+        body: JSON.stringify({ nombreusuario: username, password }),
       });
       
       const json = await res.json();
