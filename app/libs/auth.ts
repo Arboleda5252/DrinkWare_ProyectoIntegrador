@@ -67,6 +67,15 @@ export async function verifySession(token: string) {
   }
 }
 
+type SessionUserRow = {
+  idusuario: number;
+  nombreusuario: string;
+  nombre: string | null;
+  activo: boolean;
+  id_rol: number | null;
+  rol: string | null;
+};
+
 export async function getUserFromSession() {
   if (typeof window !== "undefined") {
     throw new Error("getUserFromSession solo puede usarse en el servidor (Server Component, API Route o Server Action)");
@@ -79,12 +88,22 @@ export async function getUserFromSession() {
   const v = await verifySession(token);
   if (!v) return null;
 
-  const { rows } = await sql<{ idusuario: number; nombreusuario: string; nombre: string; activo: boolean }>(
-    "SELECT idusuario, nombreusuario, nombre, activo FROM public.usuario WHERE idusuario = $1 LIMIT 1",
+  const { rows } = await sql<SessionUserRow>(
+    `SELECT u.idusuario, u.nombreusuario, u.nombre, u.activo, u.id_rol, r.rol AS rol
+       FROM public.usuario AS u
+       LEFT JOIN public.user_rol AS r ON r.id_rol = u.id_rol
+      WHERE u.idusuario = $1
+      LIMIT 1`,
     [v.idusuario]
   );
   const u = rows[0];
 
   if (!u || !u.activo) return null;
-  return { idusuario: u.idusuario, nombreusuario: u.nombreusuario, nombre: u.nombre };
+  return {
+    idusuario: u.idusuario,
+    nombreusuario: u.nombreusuario,
+    nombre: u.nombre,
+    id_rol: u.id_rol,
+    rol: u.rol,
+  };
 }

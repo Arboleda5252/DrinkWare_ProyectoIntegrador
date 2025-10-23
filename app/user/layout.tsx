@@ -8,6 +8,11 @@ type UserLayoutProps = {
   children: ReactNode;
 };
 
+type MenuLink = {
+  href: string;
+  label: string;
+};
+
 export default async function UserLayout({ children }: UserLayoutProps) {
   const user = await getUserFromSession();
   if (!user) {
@@ -15,6 +20,8 @@ export default async function UserLayout({ children }: UserLayoutProps) {
   }
 
   const displayName = user.nombre || user.nombreusuario;
+  const displayRole = user.rol ?? "Usuario";
+  const menuLinks = getLinksByRole(user.id_rol);
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 md:flex-row">
@@ -29,29 +36,25 @@ export default async function UserLayout({ children }: UserLayoutProps) {
                 height={60}
                 className="w-full max-w-[60px] brightness-0 invert"
               />
-              <p className="text-lg font-semibold md:text-2xl">Perfil</p>
+              <p className="text-lg font-semibold md:text-2xl">{displayName}</p>
             </div>
           </Link>
 
           <div className="rounded-md bg-gray-100 p-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Usuario</p>
-            <p className="mt-1 text-base font-semibold text-gray-900 md:text-lg">{displayName}</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">{displayRole}</p>
           </div>
 
           <div className="mt-4 flex grow flex-row justify-between space-x-2 md:flex-col md:space-x-0 md:space-y-2">
             <nav className="flex w-full flex-col space-y-2">
-              <Link
-                href="/user/admin"
-                className="flex items-center rounded-md px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-900 hover:text-white"
-              >
-                Administrar cuenta
-              </Link>
-              <Link
-                href="/user/pedidos"
-                className="flex items-center rounded-md px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-900 hover:text-white"
-              >
-                Administrar pedidos y compras
-              </Link>
+              {menuLinks.map(link => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="flex items-center rounded-md px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-900 hover:text-white"
+                >
+                  {link.label}
+                </Link>
+              ))}
             </nav>
             <div className="hidden h-auto w-full grow rounded-md bg-gray-50 md:block" />
           </div>
@@ -61,4 +64,35 @@ export default async function UserLayout({ children }: UserLayoutProps) {
       <main className="flex-1 p-6">{children}</main>
     </div>
   );
+}
+
+function getLinksByRole(roleId: number | null | undefined): MenuLink[] {
+  const defaultLinks: MenuLink[] = [
+    { href: "/user/usuario", label: "Mi cuenta" },
+    { href: "/user/usuario/alertas", label: "Notificaciones" },
+    { href: "/user/usuario/compras", label: "Mis compras" },
+  ];
+
+  switch (roleId) {
+    case 2:
+      return [
+        ...defaultLinks,
+        { href: "/user/admin", label: "Gestión de usuarios" },
+        { href: "/user/admin/products", label: "Gestión de productos" },
+        { href: "/user/admin/repVentas", label: "Reporte de Ventas" },
+      ];
+    case 3:
+      return [
+        ...defaultLinks,
+        { href: "/user/vendedor", label: "Gestión de ventas" },
+        { href: "/user/vendedor/atencion", label: "Atención al cliente" },
+      ];
+    case 5:
+      return [
+        { href: "/user/proveedor", label: "Agregar producto" },
+        { href: "/user/proveedor/pedidos", label: "Gestion de pedidos" },
+      ];
+    default:
+      return defaultLinks;
+  }
 }

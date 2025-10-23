@@ -39,7 +39,7 @@ export default async function Nav() {
                 {user ? (
                   <div className="flex flex-col items-center pr-4 px-2 text-right hover:text-sky-400">
                     <LogoutButton />
-                    <p className="text-sm font-semibold hover:text-sky-400">{user.nombre || user.nombreusuario}</p> 
+                    <p className="text-sm font-semibold hover:text-sky-400 my-1">Cerrar Sesión</p> 
                   </div>
                 ) : (
                   <div className='justify-center'>
