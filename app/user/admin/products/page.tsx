@@ -58,6 +58,9 @@ export default function ProductsPage() {
   const [productoInactivar, setProductoInactivar] = React.useState<Producto | null>(null);
   const [guardandoInactivar, setGuardandoInactivar] = React.useState(false);
   const [errorInactivar, setErrorInactivar] = React.useState<string | null>(null);
+  const [modalInactivosAbierto, setModalInactivosAbierto] = React.useState(false);
+  const [activandoId, setActivandoId] = React.useState<number | null>(null);
+  const [errorActivar, setErrorActivar] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelado = false;
@@ -85,14 +88,24 @@ export default function ProductsPage() {
 
   const filtrados = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    return productos.filter((p) => {
-      const texto = [p.nombre ?? "", p.categoria ?? "Sin categoría", String(p.precio ?? ""), String(p.stock ?? "")]
-        .join(" ").toLowerCase();
-      const coincideTexto = q ? texto.includes(q) : true;
-      const coincideCat = filtroCategoria === "Todas" ? true : (p.categoria ?? "Sin categoría") === filtroCategoria;
-      return coincideTexto && coincideCat;
-    });
+    return productos
+      .filter((p) => (p.estados ?? "").toLowerCase() !== "inactivo")
+      .filter((p) => {
+        const texto = [p.nombre ?? "", p.categoria ?? "Sin categoría", String(p.precio ?? ""), String(p.stock ?? "")]
+          .join(" ").toLowerCase();
+        const coincideTexto = q ? texto.includes(q) : true;
+        const coincideCat = filtroCategoria === "Todas" ? true : (p.categoria ?? "Sin categoría") === filtroCategoria;
+        return coincideTexto && coincideCat;
+      });
   }, [productos, query, filtroCategoria]);
+  const inactivos = React.useMemo(
+    () => productos.filter((p) => (p.estados ?? "").toLowerCase() === "inactivo"),
+    [productos]
+  );
+  const totalActivos = React.useMemo(
+    () => productos.filter((p) => (p.estados ?? "").toLowerCase() !== "inactivo").length,
+    [productos]
+  );
 
   // Ver producto 
   const verProducto = async (p: Producto) => {
@@ -112,7 +125,7 @@ export default function ProductsPage() {
   };
   const cerrarModalVer = () => { setModalVerAbierto(false); setProductoVer(null); };
 
-  // Abrir modal de inactivar 
+  // Modal de inactivar 
   const abrirInactivar = (p: Producto) => {
     setProductoInactivar(p);
     setErrorInactivar(null);
@@ -123,6 +136,16 @@ export default function ProductsPage() {
     setProductoInactivar(null);
     setGuardandoInactivar(false);
     setErrorInactivar(null);
+  };
+
+  const abrirModalInactivos = () => {
+    setErrorActivar(null);
+    setModalInactivosAbierto(true);
+  };
+  const cerrarModalInactivos = () => {
+    setModalInactivosAbierto(false);
+    setErrorActivar(null);
+    setActivandoId(null);
   };
 
   const confirmarInactivar = async () => {
@@ -150,8 +173,107 @@ export default function ProductsPage() {
     }
   };
 
+  const activarProducto = async (producto: Producto) => {
+    setErrorActivar(null);
+    setActivandoId(producto.id);
+    try {
+      const res = await fetch(`/api/productos/${producto.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "activar" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
+      }
+
+      setProductos((prev) =>
+        prev.map((p) =>
+          p.id === producto.id ? { ...p, estados: "activo" } : p
+        )
+      );
+    } catch (e: any) {
+      setErrorActivar(e?.message ?? "Error al activar el producto");
+    } finally {
+      setActivandoId(null);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 p-6">
+      {modalInactivosAbierto && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-10">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl text-center items-center
+                font-semibold text-gray-900">
+                  Productos inactivos
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarModalInactivos}
+                className="rounded-full border border-gray-200 px-3 py-1 text-sm font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              >
+                X
+              </button>
+            </div>
+
+            {errorActivar && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorActivar}
+              </div>
+            )}
+
+            <div className="mt-4 max-h-[60vh] overflow-y-auto">
+              {inactivos.length > 0 ? (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-600">
+                    <tr>
+                      <th className="px-4 py-2 font-semibold">Producto</th>
+                      <th className="px-4 py-2 font-semibold">Categoría</th>
+                      <th className="px-4 py-2 font-semibold">Precio</th>
+                      <th className="px-4 py-2 font-semibold">Stock</th>
+                      <th className="px-4 py-2 font-semibold">Estado</th>
+                      <th className="px-4 py-2 font-semibold text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {inactivos.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2">{p.nombre}</td>
+                        <td className="px-4 py-2">{p.categoria ?? "Sin categoría"}</td>
+                        <td className="px-4 py-2">{MONEDA.format(p.precio)}</td>
+                        <td className="px-4 py-2">{p.stock}</td>
+                        <td className="px-4 py-2 text-gray-600">{p.estados ?? "Sin estado"}</td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => activarProducto(p)}
+                            disabled={activandoId === p.id}
+                            className="inline-flex items-center gap-2 rounded-full border border-green-200 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-60"
+                          >
+                            {activandoId === p.id && (
+                              <FaSpinner className="h-3.5 w-3.5 animate-spin" />
+                            )}
+                            {activandoId === p.id ? "Activando..." : "Activar"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+                  No hay ningun producto inactivo registrado.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: Ver */}
       {modalVerAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
@@ -247,6 +369,16 @@ export default function ProductsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de productos</h1>
         </header>
 
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={abrirModalInactivos}
+            className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-100"
+          >
+            Ver productos inactivos ({inactivos.length})
+          </button>
+        </div>
+
         {/* Filtros */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
@@ -306,7 +438,6 @@ export default function ProductsPage() {
 
                 {!cargando && !error && filtrados.map((p) => {
                   const inactivo = (p.estados ?? "").toLowerCase() === "inactivo";
-                  const disponible = !inactivo && p.stock > 0;
                   const estadoTexto = inactivo ? "Inactivo" : (p.stock > 0 ? "Disponible" : "Agotado");
                   const estadoClass = inactivo
                     ? "bg-gray-100 text-gray-600 ring-gray-200"
@@ -373,7 +504,7 @@ export default function ProductsPage() {
         {!cargando && !error && (
           <p className="text-sm text-gray-500">
             Mostrando <span className="font-medium">{filtrados.length}</span> de{" "}
-            <span className="font-medium">{productos.length}</span> productos
+            <span className="font-medium">{totalActivos}</span> productos activos
           </p>
         )}
       </div>

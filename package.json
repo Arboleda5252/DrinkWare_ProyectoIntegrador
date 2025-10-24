@@ -27,6 +27,7 @@
     "react": "latest",
     "react-dom": "latest",
     "react-icons": "^5.5.0",
+    "react-slick": "^0.31.0",
     "semantic-ui-css": "^2.5.0",
     "semantic-ui-react": "^2.1.5",
     "serverless-mysql": "^2.1.0",

@@ -5,14 +5,7 @@ export default function Page() {
 
 <main className="bg-gray-100 text-gray-800">
 
-  {/* <div className="w-full bg-gray-900 shadow-lg z-10">
-    <ul className="flex justify-center gap-8 py-4">
-      <li><a href="#quienes-somos" className="text-white font-bold hover:text-pink-500">Quiénes Somos</a></li>
-      <li><a href="#mision" className="text-white font-bold hover:text-pink-500">Misión</a></li>
-      <li><a href="#vision" className="text-white font-bold hover:text-pink-500">Visión</a></li>
-      <li><a href="#valor-agregado" className="text-white font-bold hover:text-pink-500">Valor Agregado</a></li>
-    </ul>
-  </div> */}
+
 
   <header id="inicio" className="bg-gradient-to-r from-purple-700 to-pink-600 text-white text-center py-28 mt-16">
     <h1 className="text-5xl font-extrabold tracking-wider">Drinkware</h1>

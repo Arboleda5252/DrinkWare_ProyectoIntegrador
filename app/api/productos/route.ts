@@ -7,12 +7,12 @@ type ProductoListado = {
   id: number;
   nombre: string;
   categoria: string | null;
-  precio: number;        // ver nota sobre el CAST
+  precio: number;        
   stock: number;
   imagen: string | null;
   descripcion: string | null;
   id_proveedor: number | null;
-  estados: string | null; // ajusta a boolean/number según tu esquema real
+  estados: string | null; 
 };
 
 export async function GET() {

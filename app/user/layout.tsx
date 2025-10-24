@@ -24,10 +24,10 @@ export default async function UserLayout({ children }: UserLayoutProps) {
   const menuLinks = getLinksByRole(user.id_rol);
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50 md:flex-row">
+    <div className="flex min-h-screen flex-col bg-gray-10 md:flex-row">
       <aside className="w-full bg-white shadow-lg md:w-72">
-        <div className="flex h-full flex-col px-2 py-4 md:px-4">
-          <Link className="mb-4 flex h-16 items-center justify-center rounded-md bg-blue-500 p-2 md:h-40" href="/user">
+        <div className="flex h-full flex-col px-1 py-4 md:px-4">
+          <Link className="mb-4 flex h-14 items-center justify-center rounded-md bg-blue-500 p-1 md:h-40" href="/user">
             <div className="flex w-full flex-col items-center justify-center text-white">
               <Image
                 src="/Logos/LogoAdmin.png"
@@ -40,8 +40,8 @@ export default async function UserLayout({ children }: UserLayoutProps) {
             </div>
           </Link>
 
-          <div className="rounded-md bg-gray-100 p-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-gray-500">{displayRole}</p>
+          <div className="rounded-md bg-gray-50 p-4 text-center">
+            <p className="text-xs uppercase tracking-wide text-gray-800">{displayRole}</p>
           </div>
 
           <div className="mt-4 flex grow flex-row justify-between space-x-2 md:flex-col md:space-x-0 md:space-y-2">
