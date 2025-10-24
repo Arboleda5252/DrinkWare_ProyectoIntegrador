@@ -89,6 +89,7 @@ function getLinksByRole(roleId: number | null | undefined): MenuLink[] {
       ];
     case 5:
       return [
+        ...defaultLinks,
         { href: "/user/proveedor", label: "Agregar producto" },
         { href: "/user/proveedor/pedidos", label: "Gestion de pedidos" },
       ];

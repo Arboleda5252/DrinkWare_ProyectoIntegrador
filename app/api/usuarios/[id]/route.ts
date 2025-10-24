@@ -96,7 +96,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ ok: false, error: 'Body inválido' }, { status: 400 });
   }
 
-  // Separar campos permitidos
   const camposPersonales = [
     'nombre', 'apellido', 'correo', 'documento', 'telefono', 'ciudad', 'direccion',
     'tipo_documento', 'nombreusuario', 'fecha_nacimiento', 'mediopago', 'password'

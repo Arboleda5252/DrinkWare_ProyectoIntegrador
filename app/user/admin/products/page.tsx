@@ -687,12 +687,15 @@ export default function ProductsPage() {
                   const esDisponible = estado === "disponible";
                   const esInactivo = estado === "inactivo";
                   const esNoDisponible = estado === "no disponible";
-                  const estadoTexto = p.estados ?? "Sin estado";
+                  const esAgotado = (p.stock ?? 0) <= 0;
+                  const estadoTexto = esAgotado ? "Agotado" : (p.estados ?? "Sin estado");
                   const estadoClass = esInactivo
                     ? "bg-gray-100 text-gray-600 ring-gray-200"
                     : esNoDisponible
                       ? "bg-yellow-50 text-yellow-700 ring-yellow-200"
-                      : "bg-green-50 text-green-700 ring-green-200";
+                      : esAgotado
+                        ? "bg-orange-50 text-orange-700 ring-orange-200"
+                        : "bg-green-50 text-green-700 ring-green-200";
                   return (
                     <tr key={p.id} className="hover:bg-gray-50/60">
                       <td className="px-6 py-3">{p.nombre}</td>
@@ -716,7 +719,13 @@ export default function ProductsPage() {
                           </button>
 
                           <button
-                            title={esDisponible ? "Solicitar pedido" : "Producto no disponible"}
+                            title={
+                              !esDisponible
+                                ? "Producto no disponible"
+                                : esAgotado
+                                  ? "Producto agotado. Solicitar reposición"
+                                  : "Solicitar pedido"
+                            }
                             type="button"
                             onClick={() => abrirModalPedido(p)}
                             disabled={!esDisponible}
@@ -727,7 +736,13 @@ export default function ProductsPage() {
 
                           {/* Descontinuar (inactivar) */}
                           <button
-                            title={esDisponible ? "Descontinuar (inactivar)" : "No disponible para descontinuar"}
+                            title={
+                              !esDisponible
+                                ? "No disponible para descontinuar"
+                                : esAgotado
+                                  ? "Producto agotado. Descontinuar"
+                                  : "Descontinuar (inactivar)"
+                            }
                             onClick={() => abrirInactivar(p)}
                             disabled={!esDisponible}
                             className="rounded-lg border border-gray-200 p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
