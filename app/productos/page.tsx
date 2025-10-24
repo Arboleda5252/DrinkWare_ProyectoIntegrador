@@ -10,43 +10,61 @@ export default function Page() {
   const [filtroDisponible, setFiltroDisponible] = useState("todos");
   const [animarCarrito, setAnimarCarrito] = useState(false);
 
+  // Conexión con API simulada (puedes reemplazar con tu endpoint real)
   useEffect(() => {
-    setProductos([
-      {
-        id: 1,
-        nombre: "Aguardiente Antioqueño",
-        descripcion: "El clásico de Colombia, con sabor anisado.",
-        precio: 25000,
-        precioOriginal: 30000,
-        disponible: true,
-        imagen: "/productos/agt1-2.png",
-        referencia: "AGT-001",
-        variaciones: ["750 ml", "1 litro"],
-      },
-      {
-        id: 2,
-        nombre: "Ron Medellín",
-        descripcion: "El ron insignia de Colombia.",
-        precio: 55000,
-        disponible: true,
-        imagen: "/productos/ronMed1-2.png",
-        referencia: "RON-002",
-        variaciones: ["750 ml", "1 litro"],
-      },
-      {
-        id: 3,
-        nombre: "Ron Viejo de Caldas",
-        descripcion: "Suavidad y tradición única.",
-        precio: 48000,
-        precioOriginal: 52000,
-        disponible: true,
-        imagen: "/productos/ronCaldasLitro.png",
-        referencia: "RVC-003",
-        variaciones: ["500 ml", "1 litro"],
-      },
-    ]);
+    async function obtenerProductos() {
+      try {
+        const res = await fetch("/api/productos"); // <-- Cambia esto a tu endpoint real
+        if (!res.ok) throw new Error("Error al cargar productos");
+        const data = await res.json();
+        setProductos(data);
+      } catch (error) {
+        console.error("Error al cargar productos:", error);
+        // Si falla la API, usa datos locales de respaldo
+        setProductos([
+          {
+            id: 1,
+            nombre: "Aguardiente Antioqueño",
+            descripcion:
+              "El clásico de Colombia, con sabor anisado y tradición en cada sorbo.",
+            precio: 25000,
+            precioOriginal: 30000,
+            disponible: true,
+            imagen: "/productos/agt1-2.png",
+            referencia: "AGT-001",
+            variaciones: ["750 ml", "1 litro"],
+          },
+          {
+            id: 2,
+            nombre: "Ron Medellín",
+            descripcion:
+              "El ron insignia, con envejecimiento natural que garantiza suavidad y carácter.",
+            precio: 55000,
+            precioOriginal: null,
+            disponible: true,
+            imagen: "/productos/ronMed1-2.png",
+            referencia: "RON-002",
+            variaciones: ["750 ml", "1 litro"],
+          },
+          {
+            id: 3,
+            nombre: "Ron Viejo de Caldas",
+            descripcion:
+              "Reconocido internacionalmente por su suavidad y proceso de añejamiento único.",
+            precio: 48000,
+            precioOriginal: 52000,
+            disponible: true,
+            imagen: "/productos/ronCaldasLitro.png",
+            referencia: "RVC-003",
+            variaciones: ["500 ml", "1 litro"],
+          },
+        ]);
+      }
+    }
+    obtenerProductos();
   }, []);
 
+  // Lógica del carrito
   const agregarAlCarrito = (producto) => {
     setCarrito([...carrito, producto]);
     setAnimarCarrito(true);
@@ -63,6 +81,7 @@ export default function Page() {
 
   const total = carrito.reduce((acc, p) => acc + p.precio, 0);
 
+  // Filtro combinado
   const productosFiltrados = productos.filter(
     (p) =>
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) &&
@@ -76,6 +95,7 @@ export default function Page() {
       {/* Barra superior */}
       <nav className="fixed top-0 left-0 w-full bg-black text-white flex justify-between items-center px-6 py-4 shadow-lg z-50">
         <h1 className="text-2xl font-bold tracking-wide">DrinkWare</h1>
+
         <div className="flex items-center space-x-4">
           {/* Barra de búsqueda */}
           <input
@@ -85,7 +105,8 @@ export default function Page() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
-          {/* Filtro */}
+
+          {/* Filtro por disponibilidad */}
           <select
             className="px-3 py-2 rounded-lg text-black"
             value={filtroDisponible}
@@ -95,13 +116,15 @@ export default function Page() {
             <option value="disponible">Disponible</option>
             <option value="agotado">Agotado</option>
           </select>
-          {/* Icono Carrito */}
+
+          {/* Icono del carrito */}
           <button
             onClick={() => setMostrarCarrito(true)}
             className={`relative text-2xl hover:scale-110 transition-transform ${
               animarCarrito ? "animate-bounce" : ""
             }`}
           >
+            
             {carrito.length > 0 && (
               <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
                 {carrito.length}
@@ -111,13 +134,13 @@ export default function Page() {
         </div>
       </nav>
 
-      {/* Encabezado */}
+      {/*  Encabezado */}
       <header className="bg-gradient-to-r from-gray-900 to-gray-700 text-white py-20 text-center mt-20">
-        <h2 className="text-4xl font-extrabold">Productos</h2>
+        <h2 className="text-4xl font-extrabold">Catálogo de Productos</h2>
         <p className="mt-2">Licores colombianos que celebran nuestra tradición</p>
       </header>
 
-      {/* Productos */}
+      {/*  Catálogo */}
       <section className="max-w-6xl mx-auto px-6 py-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
         {productosFiltrados.map((producto) => (
           <div
@@ -135,6 +158,7 @@ export default function Page() {
               {producto.nombre}
             </h3>
             <p className="text-gray-600">{producto.descripcion}</p>
+
             <div className="mt-3">
               {producto.precioOriginal && (
                 <span className="line-through text-gray-400 mr-2">
@@ -145,6 +169,15 @@ export default function Page() {
                 ${producto.precio.toLocaleString("es-CO")}
               </span>
             </div>
+
+            <p
+              className={`mt-1 text-sm ${
+                producto.disponible ? "text-green-600" : "text-red-500"
+              }`}
+            >
+              {producto.disponible ? "Disponible" : "Agotado"}
+            </p>
+
             <button
               onClick={() => agregarAlCarrito(producto)}
               className="mt-4 w-full bg-black text-white py-2 rounded-lg hover:bg-gray-700"
@@ -155,13 +188,14 @@ export default function Page() {
         ))}
       </section>
 
-      {/* Sidebar carrito */}
+      {/*  Sidebar del carrito */}
       {mostrarCarrito && (
-        <div className="fixed top-0 right-0 w-80 h-full bg-black text-white shadow-2xl transform transition-transform duration-500 translate-x-0 z-50">
+        <div className="fixed top-0 right-0 w-80 h-full bg-black text-white shadow-2xl transform transition-transform duration-500 z-50">
           <div className="p-6 flex justify-between items-center border-b border-gray-700">
             <h2 className="text-xl font-semibold">Tu Carrito</h2>
             <button onClick={() => setMostrarCarrito(false)}>❌</button>
           </div>
+
           <div className="p-6 space-y-4 overflow-y-auto h-[70%]">
             {carrito.length === 0 ? (
               <p className="text-gray-400">El carrito está vacío</p>
@@ -179,6 +213,7 @@ export default function Page() {
               ))
             )}
           </div>
+
           <div className="p-6 border-t border-gray-700">
             <p className="text-lg font-bold">
               Total: ${total.toLocaleString("es-CO")}
@@ -197,3 +232,4 @@ export default function Page() {
     </main>
   );
 }
+
