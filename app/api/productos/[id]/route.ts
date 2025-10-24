@@ -60,12 +60,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
     }
 
+    let accion = "inactivar";
+    try {
+      const body = await req.json();
+      if (body && typeof body.accion === "string") {
+        accion = body.accion.toLowerCase();
+      }
+    } catch {
+      // Si no hay cuerpo o es inválido, se mantiene la acción por defecto.
+    }
+
+    const estadoPorAccion: Record<string, string> = {
+      inactivar: "Inactivo",
+      activar: "Disponible",
+    };
+
+    const nuevoEstado = estadoPorAccion[accion];
+    if (!nuevoEstado) {
+      return NextResponse.json({ ok: false, error: "Acción inválida" }, { status: 400 });
+    }
+
     const { rows } = await sql<{ id: number; estados: string }>(`
       UPDATE public.producto
-      SET estados = 'inactivo'
+      SET estados = $2
       WHERE idproducto = $1
       RETURNING idproducto AS id, estados;
-    `, [id]);
+    `, [id, nuevoEstado]);
 
     if (rows.length === 0) {
       return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
