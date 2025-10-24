@@ -1,131 +1,119 @@
+"use client";
 
-import Image from 'next/image';
+import * as React from "react";
+import { FaSpinner, FaClipboardCheck, FaBan } from "react-icons/fa";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 
+type Producto = {
+  id: number;
+  nombre: string;
+  categoria: string | null;
+  precio: number;
+  stock: number;
+  estado: string | null;
+  descripcion: string | null;
+  imagen: string | null;
+};
 
 export default function Page() {
+  const [productos, setProductos] = React.useState<Producto[]>([]);
+  const [cargando, setCargando] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const router = useRouter();
+
+  React.useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        setCargando(true);
+        const res = await fetch("/api/productos", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json?.ok) throw new Error(json?.error ?? "Respuesta inválida");
+        if (!cancelado) setProductos(json.data as Producto[]);
+      } catch (e: any) {
+        if (!cancelado) setError(e?.message ?? "Error al cargar productos");
+      } finally {
+        if (!cancelado) setCargando(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   return (
-    <main className="bg-gray-100 font-sans">
-      {/* Encabezado */}
-      <header className="bg-gradient-to-r from-purple-700 to-pink-600 text-white py-16 text-center shadow-lg mt-20">
-        <h1 className="text-5xl font-extrabold tracking-wide">
-          Productos DrinkWare
-        </h1>
-        <p className="mt-3 text-xl">
-          Licores colombianos que celebran nuestra tradición
-        </p>
-      </header>
+    <main className="min-h-screen bg-gray-100 py-10 px-4">
+      <h1 className="text-3xl font-bold text-center text-purple-700 mb-8">
+        Catálogo de Productos
+      </h1>
 
-      {/* Grid de productos */}
-      <section className="max-w-7xl mx-auto px-6 py-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Aguardiente */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <Image
-            src="/productos/agt1-2.png"
-            alt="Aguardiente Antioqueño"
-            width={100}
-            height={100}
-            className='w-full h-64 object-contain'
-          />
-          <div className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-purple-700">
-              Aguardiente Antioqueño
-            </h2>
-            <p className="mt-3 text-gray-700">
-              El clásico de Colombia, con sabor anisado y tradición en cada sorbo.
-            </p>
-          </div>
+      {cargando && (
+        <div className="flex justify-center items-center text-purple-600 text-xl">
+          <FaSpinner className="animate-spin mr-2" />
+          Cargando productos...
         </div>
+      )}
 
-        {/* Ron Medellín */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <Image
-            src="/productos/ronMed1-2.png"
-            alt="Ron Medellín"
-            width={100}
-            height={100}
-            className="w-full h-64 object-contain"
-          />
-          <div className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-purple-700">Ron Medellín</h2>
-            <p className="mt-3 text-gray-700">
-              El ron insignia, con envejecimiento natural que garantiza suavidad y carácter.
-            </p>
-          </div>
+      {error && (
+        <div className="flex justify-center items-center text-red-600 text-lg">
+          <FaBan className="mr-2" />
+          {error}
         </div>
+      )}
 
-        {/* Ron Viejo de Caldas */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <Image
-            src="/productos/ronCaldasLitro.png"           
-            alt="Ron Viejo de Caldas"
-            width={100}
-            height={100}
-            className="w-full h-64 object-contain"
-          />
-          <div className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-purple-700">
-              Ron Viejo de Caldas
-            </h2>
-            <p className="mt-3 text-gray-700">
-              Reconocido internacionalmente por su suavidad y proceso de añejamiento único.
-            </p>
+      {!cargando && !error && productos.length === 0 && (
+        <div className="text-center text-gray-500">No hay productos disponibles.</div>
+      )}
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {productos.map((producto) => (
+          <div
+            key={producto.id}
+            className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+          >
+            {producto.imagen ? (
+              <Image
+                src={producto.imagen}
+                alt={producto.nombre}
+                width={300}
+                height={300}
+                className="h-80 object-cover"
+              />
+            ) : (
+              <div className="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">
+                Sin imagen
+              </div>
+            )}
+            <div className="p-4">
+              <h2 className="text-xl font-semibold text-indigo-500">{producto.nombre}</h2>
+              <p className="text-sm text-gray-600">{producto.descripcion}</p>
+              <p className="mt-2 text-green-600 font-bold text-lg">
+                ${producto.precio.toLocaleString("es-CO")}
+              </p>
+              <p className="text-sm text-gray-500">
+                Stock: {producto.stock} | Estado:{" "}
+                <span
+                  className={`font-semibold ${
+                    producto.estado === "activo" ? "text-green-600" : "text-red-500"
+                  }`}
+                >
+                  {producto.estado ?? "Desconocido"}
+                </span>
+              </p>
+              <button
+                onClick={() => router.push(`/productos/${producto.id}`)}
+                className="mt-4 w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition-colors flex items-center justify-center"
+              >
+                <FaClipboardCheck className="mr-2" />
+                Ver detalles
+              </button>
+              
+            </div>
           </div>
-        </div>
-
-        {/* Cerveza Poker */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <Image
-            src="/productos/Poker0.png"
-            width={100}
-            height={100}
-            alt="Cerveza Poker"
-            className="w-full h-64 object-contain"
-          />
-          <div className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-purple-700">Cerveza Poker</h2>
-            <p className="mt-3 text-gray-700">
-              La cerveza de la amistad, perfecta para compartir momentos únicos.
-            </p>
-          </div>
-        </div>
-
-        {/* Cerveza Águila */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <Image
-            src="/productos/aguila0.png"
-            alt="Cerveza Águila"
-            width={100}
-            height={100}
-            className="w-full h-64 object-contain"
-          />
-          <div className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-purple-700">Cerveza Águila</h2>
-            <p className="mt-3 text-gray-700">
-              Refrescante y popular en todo el país, ideal para cualquier celebración.
-            </p>
-          </div>
-        </div>
-
-        {/* Refajo Colombiano */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:scale-105 transition-transform">
-          <Image
-            src="/productos/refajox6.png"
-            width={100}
-            height={100}
-            alt="Refajo Colombiano"
-            className="w-full h-64 object-contain"
-          />
-          <div className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-purple-700">
-              Refajo Colombiano
-            </h2>
-            <p className="mt-3 text-gray-700">
-              La mezcla perfecta entre cerveza y gaseosa, infaltable en las fiestas típicas.
-            </p>
-          </div>
-        </div>
-      </section>
-
+        ))}
+      </div>
     </main>
   );
 }

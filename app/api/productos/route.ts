@@ -12,6 +12,7 @@ type ProductoListado = {
   imagen: string | null;
   descripcion: string | null;
   id_proveedor: number | null;
+  pedidos: boolean;
   estados: string | null; 
 };
 
@@ -27,6 +28,7 @@ export async function GET() {
         p.imagen,
         p.descripcion,
         p.id_proveedor,
+        p.pedidos AS pedidos,
         p.estados
       FROM public.producto AS p
       ORDER BY p.nombre;
@@ -79,6 +81,7 @@ export async function POST(req: NextRequest) {
       body?.id_proveedor === null || body?.id_proveedor === undefined
         ? null
         : Number(body.id_proveedor);
+    const pedidosEntrada = body?.pedidos;
     const estados =
       typeof body?.estados === 'string' && body.estados.trim()
         ? body.estados.trim()
@@ -115,10 +118,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (pedidosEntrada !== undefined && typeof pedidosEntrada !== 'boolean') {
+      return NextResponse.json(
+        { ok: false, error: 'Los pedidos deben ser un valor booleano' },
+        { status: 400 }
+      );
+    }
+
+    const pedidos = typeof pedidosEntrada === 'boolean' ? pedidosEntrada : false;
+
     const { rows } = await sql<ProductoListado>(`
       INSERT INTO public.producto
-        (nombre, categoria, precio, stock, imagen, descripcion, id_proveedor, estados)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (nombre, categoria, precio, stock, imagen, descripcion, id_proveedor, pedidos, estados)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING
         idproducto AS id,
         nombre,
@@ -128,6 +140,7 @@ export async function POST(req: NextRequest) {
         imagen,
         descripcion,
         id_proveedor,
+        pedidos AS pedidos,
         estados;
     `, [
       nombre,
@@ -137,6 +150,7 @@ export async function POST(req: NextRequest) {
       imagen,
       descripcion,
       idProveedor,
+      pedidos,
       estados,
     ]);
 
@@ -149,3 +163,7 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+
+
+

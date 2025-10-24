@@ -11,6 +11,7 @@ type Producto = {
   categoria: string | null;
   precio: number;
   stock: number;
+  pedidos: boolean;
   estados: string | null;
   descripcion?: string | null;
   imagen?: string | null;
@@ -90,7 +91,7 @@ export default function ProveedorPedidosPage() {
   }, [productos, query, filtroCategoria]);
 
   const pedidosAdministrador = React.useMemo(
-    () => productos.filter((p) => (p.estados ?? "").toLowerCase() === "no disponible"),
+    () => productos.filter((p) => p.pedidos),
     [productos]
   );
   const totalProductos = React.useMemo(() => productos.length, [productos]);
@@ -146,7 +147,7 @@ export default function ProveedorPedidosPage() {
       }
 
       setProductos((prev) =>
-        prev.map((p) => (p.id === producto.id ? { ...p, estados: "Inactivo" } : p))
+        prev.map((p) => (p.id === producto.id ? { ...p, estados: "Inactivo", pedidos: false } : p))
       );
     } catch (e: any) {
       setErrorRechazar(e?.message ?? "Error al rechazar el pedido");
@@ -364,3 +365,4 @@ export default function ProveedorPedidosPage() {
     </main>
   );
 }
+

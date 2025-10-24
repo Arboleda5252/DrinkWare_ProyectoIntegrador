@@ -12,6 +12,7 @@ type ProductoDetalle = {
   imagen: string | null;
   descripcion: string | null;
   id_proveedor: number | null;
+  pedidos: boolean;
   estados: string | null;
 };
 
@@ -30,6 +31,7 @@ export async function GET(
         p.imagen,
         p.descripcion,
         p.id_proveedor,
+        p.pedidos AS pedidos,
         p.estados
       FROM public.producto AS p
       WHERE p.idproducto = $1
@@ -68,6 +70,36 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     } catch {
       // Si no hay cuerpo o es inválido, se mantiene la acción por defecto.
+    }
+
+    if (accion === "solicitar_pedido") {
+      const { rows } = await sql<{ id: number; pedidos: boolean }>(`
+        UPDATE public.producto
+        SET pedidos = TRUE
+        WHERE idproducto = $1
+        RETURNING idproducto AS id, pedidos;
+      `, [id]);
+
+      if (rows.length === 0) {
+        return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
+      }
+
+      return NextResponse.json({ ok: true, data: rows[0] });
+    }
+
+    if (accion === "limpiar_pedido") {
+      const { rows } = await sql<{ id: number; pedidos: boolean }>(`
+        UPDATE public.producto
+        SET pedidos = FALSE
+        WHERE idproducto = $1
+        RETURNING idproducto AS id, pedidos;
+      `, [id]);
+
+      if (rows.length === 0) {
+        return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
+      }
+
+      return NextResponse.json({ ok: true, data: rows[0] });
     }
 
     const estadoPorAccion: Record<string, string> = {
@@ -142,6 +174,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body?.id_proveedor === null || body?.id_proveedor === undefined
         ? null
         : Number(body.id_proveedor);
+    let pedidos: boolean | null = null;
+    if (body?.pedidos !== undefined) {
+      if (typeof body.pedidos !== 'boolean') {
+        return NextResponse.json(
+          { ok: false, error: 'Los pedidos deben ser un valor booleano' },
+          { status: 400 }
+        );
+      }
+      pedidos = body.pedidos;
+    }
     const estados =
       body?.estados === undefined
         ? null
@@ -192,7 +234,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         imagen = $6,
         descripcion = $7,
         id_proveedor = $8,
-        estados = COALESCE($9, estados)
+        pedidos = COALESCE($9, pedidos),
+        estados = COALESCE($10, estados)
       WHERE idproducto = $1
       RETURNING
         idproducto AS id,
@@ -203,6 +246,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         imagen,
         descripcion,
         id_proveedor,
+        pedidos AS pedidos,
         estados;
     `, [
       id,
@@ -213,6 +257,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       imagen,
       descripcion,
       idProveedor,
+      pedidos,
       estados,
     ]);
 

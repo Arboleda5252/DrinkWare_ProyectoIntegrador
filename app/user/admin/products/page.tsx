@@ -13,6 +13,7 @@ type Producto = {
   categoria: string | null;
   precio: number;
   stock: number;
+  pedidos: boolean;
   estados: string | null;
   descripcion?: string | null;
   imagen?: string | null;
@@ -209,7 +210,23 @@ export default function ProductsPage() {
     setExitoPedido(null);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const res = await fetch(`/api/productos/${productoPedido.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "solicitar_pedido", cantidad }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
+      }
+
+      setProductos((prev) =>
+        prev.map((p) =>
+          p.id === productoPedido.id ? { ...p, pedidos: true } : p
+        )
+      );
+      setProductoPedido((prev) => (prev ? { ...prev, pedidos: true } : prev));
+
       setExitoPedido("Solicitud enviada");
       setCantidadPedido("");
     } catch (e: any) {
@@ -724,11 +741,13 @@ export default function ProductsPage() {
                                 ? "Producto no disponible"
                                 : esAgotado
                                   ? "Producto agotado. Solicitar reposición"
-                                  : "Solicitar pedido"
+                                  : p.pedidos
+                                    ? "Pedido ya solicitado"
+                                    : "Solicitar pedido"
                             }
                             type="button"
                             onClick={() => abrirModalPedido(p)}
-                            disabled={!esDisponible}
+                            disabled={!esDisponible || p.pedidos}
                             className="rounded-lg border border-gray-200 p-2 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                           >
                             <FaClipboardCheck className="h-4 w-4" />
@@ -777,3 +796,7 @@ export default function ProductsPage() {
     </main>
   );
 }
+
+
+
+
