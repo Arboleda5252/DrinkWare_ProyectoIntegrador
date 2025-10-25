@@ -163,9 +163,9 @@ export default function ProveedorPedidosPage() {
           <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-lg">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Pedidos del administrador</h2>
+                <h2 className="text-xl font-semibold text-center text-gray-900">Pedidos</h2>
                 <p className="text-sm text-gray-500 py-2">
-                  Revisa las solicitudes y acepta o rechaza segun tu disponibilidad.
+                  Revisa las solicitudes 
                 </p>
               </div>
               <button
