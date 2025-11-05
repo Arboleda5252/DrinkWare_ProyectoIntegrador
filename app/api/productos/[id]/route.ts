@@ -69,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         accion = body.accion.toLowerCase();
       }
     } catch {
-      // Si no hay cuerpo o es inválido, se mantiene la acción por defecto.
+      // 
     }
 
     if (accion === "solicitar_pedido") {
