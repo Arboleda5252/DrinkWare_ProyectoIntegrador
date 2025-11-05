@@ -1,28 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from '@/app/libs/database';
+import { authenticateUser } from "@/app/libs/auth";
 
 export const runtime = "nodejs";
-
-type Usuario = { idusuario: number; nombreusuario: string };
 
 export async function POST(req: NextRequest) {
   try {
     const { nombreusuario, password } = await req.json();
-    if (!nombreusuario || !password) {
-      return NextResponse.json({ ok: false, error: "Faltan credenciales" }, { status: 400 });
+    const result = await authenticateUser(nombreusuario, password);
+
+    if (!result.ok) {
+      const status = result.status ?? 401;
+      return NextResponse.json({ ok: false, error: result.error }, { status });
     }
 
-    const { rows } = await sql<Usuario>(
-      `SELECT idusuario, nombreusuario
-         FROM public.usuario
-        WHERE nombreusuario = $1 AND password = $2`,
-      [nombreusuario, password]
-    );
+    const response = NextResponse.json({
+      ok: true,
+      user: result.user,
+      activated: result.activated,
+    });
 
-    if (rows.length === 1) {
-      return NextResponse.json({ ok: true, user: rows[0] });
-    }
-    return NextResponse.json({ ok: false, error: "Credenciales incorrectas" }, { status: 401 });
+    response.cookies.set({
+      name: "session",
+      value: result.token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, 
+    });
+
+    return response;
   } catch (err) {
     console.error(err);
     return NextResponse.json({ ok: false, error: "Error del servidor" }, { status: 500 });

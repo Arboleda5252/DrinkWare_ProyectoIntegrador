@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Validar campos obligatorios
+  // Validación campos obligatorios
   const obligatorios = ['nombre', 'apellido', 'tipo_documento', 'documento', 'telefono', 'correo', 'ciudad', 'direccion', 'nombreusuario', 'password', 'fecha_nacimiento', 'id_rol'];
   for (const campo of obligatorios) {
     if (!body[campo] || body[campo] === "") {

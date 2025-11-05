@@ -1,18 +1,77 @@
-// components/Bienvenido.tsx
-import Link from 'next/link';
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getUserFromSession } from "@/app/libs/auth";
+import Image from "next/image";
 
-export default function Bienvenido() {
+export default async function UserPage() {
+  const user = await getUserFromSession();
+  if (!user) {
+    redirect("/account/login");
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-100 text-center">
-      <h1 className="text-4xl font-bold text-blue-700 mb-4">¡Bienvenido a DrinkWare!</h1>
-      <p className="text-lg text-gray-600 mb-6">
-        Plataforma de gestión para distribuidoras de licores.
-      </p>
-      <Link href="/user/admin">
-        <a className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-          Ir al panel de administración
-        </a>
-      </Link>
-    </div>
+    <section className="space-y-6">
+      <div className="w-full overflow-hidden rounded-lg border border-gray-300">
+        <div className="flex">
+          <div className="basis-[30%] p-4 flex items-center justify-center">
+            <Image
+              src="/img/descorchar.jpg"
+              alt="Botella de vino"
+              width={480}
+              height={752}
+              quality={85}
+              className="h-auto w-full"
+              sizes="480px"
+              priority />
+          </div>
+
+          <div className="basis-[70%] flex flex-col">
+            <div className="p-4 border-l border-gray-300">
+              <header className="space-y-1">
+                <h1 className="text-2xl font-bold text-center text-gray-900 font-bold italic text-4xl">! Bienvenido a DrinkWare ¡</h1>
+                <p className="text-sm text-center text-gray-600">
+                  Descubre lo nuevo y navega por los apartados disponibles.
+                </p>
+              </header>
+            </div>
+
+            <div className="flex border-t border-gray-300">
+              <div className="basis-2/3 p-4 indent-8 text-justify whitespace-normal">
+                ¡Bienvenido {user.nombre || user.nombreusuario}¡ Tu tienda de licores en línea donde lo importante es comprar fácil y recibir rápido. Tenemos de todo: aguardientes, rones, cervezas
+                artesanales y vinos para cada ocasión.
+                <div className="my-4" />
+                Cada compra está cubierta por nuestra garantía de distribuidora y un equipo de soporte que te ayuda si lo necesitas.
+                Haz tu pedido de forma segura, paga como prefieras y aprovecha la entrega a domicilio con tiempos cortos y seguimiento.
+                Empieza por las secciones destacadas, descubre novedades y arma tu pedido ideal sin complicaciones.
+                <div className="my-5 grid gap-3 sm:grid-cols-2">
+                  <Link
+                    href="/productos"
+                    className="block rounded-xl border border-gray-200 bg-gray-900 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-sky-500"
+                  >
+                    Ver nuestros productos
+                  </Link>
+                  <Link
+                    href="/user/admin"
+                    className="block rounded-xl border border-gray-200 px-4 py-3 text-center text-sm font-semibold text-gray-700 transition hover:border-sky-400 hover:text-sky-500"
+                  >
+                    Contactenos
+                  </Link>
+                </div>
+              </div>
+              <div className="basis-1/3 p-4">
+                <Image
+                  src="/img/rones.png"
+                  alt="Imagen de contenido"
+                  width={400}
+                  height={300}
+                  className="w-full h-auto" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+    </section>
   );
 }

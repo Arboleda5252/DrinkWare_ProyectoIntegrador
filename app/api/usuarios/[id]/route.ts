@@ -1,6 +1,7 @@
 // app/api/usuario/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/app/libs/database';
+import { getUserFromSession } from '@/app/libs/auth';
 
 export const runtime = 'nodejs';
 
@@ -25,14 +26,24 @@ function parseId(idStr: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+async function resolveTargetId(idParam: string): Promise<number | null> {
+  if (idParam === 'me') {
+    const sessionUser = await getUserFromSession();
+    return sessionUser?.idusuario ?? null;
+  }
+  return parseId(idParam);
+}
+
 // GET
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const id = parseId(params.id);
+  const id = await resolveTargetId(params.id);
   if (!id) {
-    return NextResponse.json({ ok: false, error: 'ID inválido' }, { status: 400 });
+    const status = params.id === 'me' ? 401 : 400;
+    const error = params.id === 'me' ? 'No autenticado' : 'ID invalido';
+    return NextResponse.json({ ok: false, error }, { status });
   }
 
   try {
@@ -71,9 +82,11 @@ export async function GET(
 
 // PUT
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const id = parseId(params.id);
+  const id = await resolveTargetId(params.id);
   if (!id) {
-    return NextResponse.json({ ok: false, error: 'ID inválido' }, { status: 400 });
+    const status = params.id === 'me' ? 401 : 400;
+    const error = params.id === 'me' ? 'No autenticado' : 'ID invalido';
+    return NextResponse.json({ ok: false, error }, { status });
   }
 
   let body;
@@ -83,10 +96,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ ok: false, error: 'Body inválido' }, { status: 400 });
   }
 
-  // Separar campos permitidos
   const camposPersonales = [
     'nombre', 'apellido', 'correo', 'documento', 'telefono', 'ciudad', 'direccion',
-    'tipo_documento', 'nombreusuario', 'fecha_nacimiento', 'mediopago'
+    'tipo_documento', 'nombreusuario', 'fecha_nacimiento', 'mediopago', 'password'
   ];
   const camposActualizar = [];
   const valoresActualizar = [];
@@ -117,6 +129,48 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   } catch (err) {
     console.error(err);
     return NextResponse.json({ ok: false, error: 'Error al actualizar usuario' }, { status: 500 });
+  }
+}
+
+// DELETE
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const sessionUser = await getUserFromSession();
+    if (!sessionUser) {
+      return NextResponse.json({ ok: false, error: 'No autenticado' }, { status: 401 });
+    }
+
+    let targetId: number | null = null;
+    if (params.id === 'me') {
+      targetId = sessionUser.idusuario;
+    } else {
+      targetId = parseId(params.id);
+    }
+
+    if (!targetId) {
+      return NextResponse.json({ ok: false, error: 'ID inválido' }, { status: 400 });
+    }
+
+    if (targetId !== sessionUser.idusuario) {
+      return NextResponse.json({ ok: false, error: 'Prohibido' }, { status: 403 });
+    }
+
+    await sql(
+      `UPDATE public.usuario
+          SET activo = FALSE
+        WHERE idusuario = $1`,
+      [targetId]
+    );
+
+    const res = NextResponse.json({ ok: true, message: 'Cuenta eliminada' });
+    res.cookies.delete('session');
+    return res;
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ ok: false, error: 'Error al eliminar usuario' }, { status: 500 });
   }
 }
 

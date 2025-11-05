@@ -28,11 +28,6 @@ const Pencil = () => (
     <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" strokeWidth="2" />
   </svg>
 );
-const Trash = () => (
-  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" stroke="currentColor" strokeWidth="2" />
-  </svg>
-);
 
 type Rol = { id_rol: number; rol: string };
 
@@ -180,19 +175,6 @@ export default function UsersPage() {
     }
   };
 
-  const eliminarUsuario = async (u: Usuario) => {
-    if (!u.id) return alert("No se puede eliminar: falta ID.");
-    if (!confirm(`¿Eliminar a "${u.nombre} ${u.apellido}"?`)) return;
-    try {
-      const res = await fetch(`/api/usuario/${u.id}`, { method: "DELETE" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-      setUsuarios(prev => prev.filter(x => x.id !== u.id));
-    } catch (e: any) {
-      alert(`No se pudo eliminar: ${e?.message ?? "error desconocido"}`);
-    }
-  };
-
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       {modalVerAbierto && (
@@ -246,7 +228,7 @@ export default function UsersPage() {
                 ))}
               </select>
               <p className="mt-2 text-xs text-gray-600">
-                ¿Estás seguro de que deseas cambiar el rol de este usuario? Esta acción puede modificar sus permisos, responsabilidades y acceso dentro del sistema.
+                ¿Estás seguro de que deseas cambiar el rol de este usuario? Esta acción puede modificar sus permisos y acceso dentro del sistema.
               </p>
             </div>
             {errorModal && <div className="text-red-600 text-sm mb-2">{errorModal}</div>}
@@ -356,18 +338,11 @@ export default function UsersPage() {
                           <Eye />
                         </button>
                         <button
-                          title="Actualizar / editar"
+                          title="Actualizar rol"
                           onClick={() => editarUsuario(u)}
                           className="rounded-lg border border-gray-200 p-2 text-gray-700 hover:bg-gray-100"
                         >
                           <Pencil />
-                        </button>
-                        <button
-                          title="Eliminar"
-                          onClick={() => eliminarUsuario(u)}
-                          className="rounded-lg border border-gray-200 p-2 text-red-600 hover:bg-red-50"
-                        >
-                          <Trash />
                         </button>
                       </div>
                     </td>

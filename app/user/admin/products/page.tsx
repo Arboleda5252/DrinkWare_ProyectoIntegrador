@@ -4,6 +4,7 @@ import * as React from "react";
 import { FaSpinner, FaClipboardCheck } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { FaBan } from "react-icons/fa";
+import { MdEventAvailable } from "react-icons/md";
 import Image from "next/image";
 
 type Producto = {
@@ -12,7 +13,10 @@ type Producto = {
   categoria: string | null;
   precio: number;
   stock: number;
+  pedidos: boolean;
   estados: string | null;
+  descripcion?: string | null;
+  imagen?: string | null;
 };
 
 type ProductoDetalle = Producto & {
@@ -58,6 +62,16 @@ export default function ProductsPage() {
   const [productoInactivar, setProductoInactivar] = React.useState<Producto | null>(null);
   const [guardandoInactivar, setGuardandoInactivar] = React.useState(false);
   const [errorInactivar, setErrorInactivar] = React.useState<string | null>(null);
+  const [modalInactivosAbierto, setModalInactivosAbierto] = React.useState(false);
+  const [modalNoDisponiblesAbierto, setModalNoDisponiblesAbierto] = React.useState(false);
+  const [activandoId, setActivandoId] = React.useState<number | null>(null);
+  const [errorActivar, setErrorActivar] = React.useState<string | null>(null);
+  const [modalPedidoAbierto, setModalPedidoAbierto] = React.useState(false);
+  const [productoPedido, setProductoPedido] = React.useState<Producto | null>(null);
+  const [cantidadPedido, setCantidadPedido] = React.useState<string>("");
+  const [guardandoPedido, setGuardandoPedido] = React.useState(false);
+  const [errorPedido, setErrorPedido] = React.useState<string | null>(null);
+  const [exitoPedido, setExitoPedido] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelado = false;
@@ -85,14 +99,28 @@ export default function ProductsPage() {
 
   const filtrados = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    return productos.filter((p) => {
-      const texto = [p.nombre ?? "", p.categoria ?? "Sin categoría", String(p.precio ?? ""), String(p.stock ?? "")]
-        .join(" ").toLowerCase();
-      const coincideTexto = q ? texto.includes(q) : true;
-      const coincideCat = filtroCategoria === "Todas" ? true : (p.categoria ?? "Sin categoría") === filtroCategoria;
-      return coincideTexto && coincideCat;
-    });
+    return productos
+      .filter((p) => (p.estados ?? "").toLowerCase() === "disponible")
+      .filter((p) => {
+        const texto = [p.nombre ?? "", p.categoria ?? "Sin categoría", String(p.precio ?? ""), String(p.stock ?? "")]
+          .join(" ").toLowerCase();
+        const coincideTexto = q ? texto.includes(q) : true;
+        const coincideCat = filtroCategoria === "Todas" ? true : (p.categoria ?? "Sin categoría") === filtroCategoria;
+        return coincideTexto && coincideCat;
+      });
   }, [productos, query, filtroCategoria]);
+  const inactivos = React.useMemo(
+    () => productos.filter((p) => (p.estados ?? "").toLowerCase() === "inactivo"),
+    [productos]
+  );
+  const noDisponibles = React.useMemo(
+    () => productos.filter((p) => (p.estados ?? "").toLowerCase() === "no disponible"),
+    [productos]
+  );
+  const totalDisponibles = React.useMemo(
+    () => productos.filter((p) => (p.estados ?? "").toLowerCase() === "disponible").length,
+    [productos]
+  );
 
   // Ver producto 
   const verProducto = async (p: Producto) => {
@@ -112,17 +140,100 @@ export default function ProductsPage() {
   };
   const cerrarModalVer = () => { setModalVerAbierto(false); setProductoVer(null); };
 
-  // Abrir modal de inactivar 
+  // Modal de inactivar 
   const abrirInactivar = (p: Producto) => {
     setProductoInactivar(p);
     setErrorInactivar(null);
     setModalInactivarAbierto(true);
   };
+
   const cerrarInactivar = () => {
     setModalInactivarAbierto(false);
     setProductoInactivar(null);
     setGuardandoInactivar(false);
     setErrorInactivar(null);
+  };
+
+  const abrirModalInactivos = () => {
+    setErrorActivar(null);
+    setModalInactivosAbierto(true);
+  };
+
+  const cerrarModalInactivos = () => {
+    setModalInactivosAbierto(false);
+    setErrorActivar(null);
+    setActivandoId(null);
+  };
+
+  // Modal de no disponibles
+  const abrirModalNoDisponibles = () => {
+    setErrorActivar(null);
+    setModalNoDisponiblesAbierto(true);
+  };
+
+  const cerrarModalNoDisponibles = () => {
+    setModalNoDisponiblesAbierto(false);
+    setErrorActivar(null);
+    setActivandoId(null);
+  };
+  
+  // Modal de pedido
+  const abrirModalPedido = (p: Producto) => {
+    setProductoPedido(p);
+    setCantidadPedido("");
+    setErrorPedido(null);
+    setExitoPedido(null);
+    setModalPedidoAbierto(true);
+  };
+
+  const cerrarModalPedido = () => {
+    setModalPedidoAbierto(false);
+    setProductoPedido(null);
+    setCantidadPedido("");
+    setErrorPedido(null);
+    setExitoPedido(null);
+    setGuardandoPedido(false);
+  };
+
+  const enviarPedido = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!productoPedido) return;
+
+    const cantidad = Number(cantidadPedido);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      setErrorPedido("Ingresa una cantidad mayor a cero.");
+      return;
+    }
+
+    setGuardandoPedido(true);
+    setErrorPedido(null);
+    setExitoPedido(null);
+
+    try {
+      const res = await fetch(`/api/productos/${productoPedido.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "solicitar_pedido", cantidad }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
+      }
+
+      setProductos((prev) =>
+        prev.map((p) =>
+          p.id === productoPedido.id ? { ...p, pedidos: true } : p
+        )
+      );
+      setProductoPedido((prev) => (prev ? { ...prev, pedidos: true } : prev));
+
+      setExitoPedido("Solicitud enviada");
+      setCantidadPedido("");
+    } catch (e: any) {
+      setErrorPedido(e?.message ?? "No fue posible enviar la solicitud.");
+    } finally {
+      setGuardandoPedido(false);
+    }
   };
 
   const confirmarInactivar = async () => {
@@ -139,7 +250,7 @@ export default function ProductsPage() {
       if (!res.ok || !json?.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
 
       setProductos(prev =>
-        prev.map(p => p.id === productoInactivar.id ? { ...p, estados: "inactivo" } : p)
+        prev.map(p => p.id === productoInactivar.id ? { ...p, estados: "Inactivo" } : p)
       );
 
       cerrarInactivar();
@@ -150,8 +261,275 @@ export default function ProductsPage() {
     }
   };
 
+  const activarProducto = async (producto: Producto) => {
+    setErrorActivar(null);
+    setActivandoId(producto.id);
+    try {
+      const res = await fetch(`/api/productos/${producto.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "activar" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
+      }
+
+      setProductos((prev) =>
+        prev.map((p) =>
+          p.id === producto.id ? { ...p, estados: "Disponible" } : p
+        )
+      );
+    } catch (e: any) {
+      setErrorActivar(e?.message ?? "Error al activar el producto");
+    } finally {
+      setActivandoId(null);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 p-6">
+      {modalPedidoAbierto && productoPedido && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
+            <button
+              type="button"
+              onClick={cerrarModalPedido}
+              className="absolute top-3 right-3 rounded-full border border-gray-200 px-3 py-1 text-sm font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            >
+              X
+            </button>
+
+            <h2 className="text-xl font-semibold text-center text-gray-900">Solicitar pedido</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Producto: <span className="font-semibold text-gray-900">{productoPedido.nombre}</span>
+            </p>
+            <p className="text-sm text-gray-600">
+              Stock actual: <span className="font-semibold text-gray-900">{productoPedido.stock}</span>
+            </p>
+
+            {errorPedido && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorPedido}
+              </div>
+            )}
+
+            {exitoPedido && (
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                {exitoPedido}
+              </div>
+            )}
+
+            <form onSubmit={enviarPedido} className="mt-4 space-y-4">
+              <div className="space-y-1">
+                <label htmlFor="cantidadPedido" className="text-sm font-medium text-gray-700">
+                  Cantidad a solicitar
+                </label>
+                <input
+                  id="cantidadPedido"
+                  name="cantidadPedido"
+                  type="number"
+                  min={1}
+                  value={cantidadPedido}
+                  onChange={(event) => setCantidadPedido(event.target.value)}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+                
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={cerrarModalPedido}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={guardandoPedido}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-70"
+                >
+                  {guardandoPedido && <FaSpinner className="h-4 w-4 animate-spin" />}
+                  Enviar solicitud
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {modalNoDisponiblesAbierto && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-10">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Añadir nuevo producto</h2>
+                <p className="text-sm text-gray-500 py-2">Selecciona un nuevo producto para que esté disponible en el catálogo</p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarModalNoDisponibles}
+                className="rounded-full border border-gray-200 px-3 py-1 text-sm font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              >
+                X
+              </button>
+            </div>
+
+            {errorActivar && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorActivar}
+              </div>
+            )}
+
+            <div className="mt-4 max-h-[60vh] overflow-y-auto">
+              {noDisponibles.length > 0 ? (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-600">
+                    <tr>
+                      <th className="px-4 py-2 font-semibold">Producto</th>
+                      <th className="px-4 py-2 font-semibold">Categoría</th>
+                      <th className="px-4 py-2 font-semibold">Precio</th>
+                      <th className="px-4 py-2 font-semibold">Stock</th>
+                      <th className="px-4 py-2 font-semibold">Descripción</th>
+                      <th className="px-4 py-2 font-semibold">Imagen</th>
+                      <th className="px-4 py-2 font-semibold text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {noDisponibles.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-4 text-center py-2">{p.nombre}</td>
+                        <td className="px-4 py-2">{p.categoria ?? "Sin categoría"}</td>
+                        <td className="px-4 py-2">{MONEDA.format(p.precio)}</td>
+                        <td className="px-4 py-2">{p.stock}</td>
+                        <td className="px-4 py-2 text-xs max-w-[220px] text-gray-600">
+                          {p.descripcion ? (
+                            <span title={p.descripcion}>
+                              {p.descripcion.length > 90 ? `${p.descripcion.slice(0, 90)}…` : p.descripcion}
+                            </span>
+                          ) : (
+                            <span className="italic text-gray-400">Sin descripción</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          {p.imagen ? (
+                            <div className="relative h-14 w-14 overflow-hidden rounded-md border border-gray-200">
+                              <Image
+                                src={p.imagen}
+                                alt={p.nombre}
+                                fill
+                                className="object-cover"
+                                sizes="56px"
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-xs italic text-gray-400">Sin imagen</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => activarProducto(p)}
+                            disabled={activandoId === p.id}
+                            className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-60"
+                          >
+                            {activandoId === p.id ? (
+                              <FaSpinner className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <MdEventAvailable className="h-4 w-4" />
+                            )}
+                            {activandoId === p.id ? "Activando..." : "Añadir"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+                  No hay productos nuevos
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalInactivosAbierto && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-10">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl text-center items-center
+                font-semibold text-gray-900">
+                  Productos inactivos
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarModalInactivos}
+                className="rounded-full border border-gray-200 px-3 py-1 text-sm font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              >
+                X
+              </button>
+            </div>
+
+            {errorActivar && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorActivar}
+              </div>
+            )}
+
+            <div className="mt-4 max-h-[60vh] overflow-y-auto">
+              {inactivos.length > 0 ? (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-600">
+                    <tr>
+                      <th className="px-4 py-2 font-semibold">Producto</th>
+                      <th className="px-4 py-2 font-semibold">Categoría</th>
+                      <th className="px-4 py-2 font-semibold">Precio</th>
+                      <th className="px-4 py-2 font-semibold">Stock</th>
+                      <th className="px-4 py-2 font-semibold">Estado</th>
+                      <th className="px-4 py-2 font-semibold text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {inactivos.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2">{p.nombre}</td>
+                        <td className="px-4 py-2">{p.categoria ?? "Sin categoría"}</td>
+                        <td className="px-4 py-2">{MONEDA.format(p.precio)}</td>
+                        <td className="px-4 py-2">{p.stock}</td>
+                        <td className="px-4 py-2 text-gray-600">{p.estados ?? "Sin estado"}</td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => activarProducto(p)}
+                            disabled={activandoId === p.id}
+                            className="inline-flex items-center gap-2 rounded-full border border-green-200 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-60"
+                          >
+                            {activandoId === p.id && (
+                              <FaSpinner className="h-3.5 w-3.5 animate-spin" />
+                            )}
+                            {activandoId === p.id ? "Activando..." : "Activar"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+                  No hay ningun producto inactivo
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: Ver */}
       {modalVerAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
@@ -244,8 +622,25 @@ export default function ProductsPage() {
 
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de productos</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-center tracking-tight">Gestión de productos</h1>
         </header>
+
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={abrirModalNoDisponibles}
+            className="inline-flex items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          >
+            + Añadir nuevo producto{noDisponibles.length ? ` (${noDisponibles.length})` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={abrirModalInactivos}
+            className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-100"
+          >
+            Ver productos Inactivos 
+          </button>
+        </div>
 
         {/* Filtros */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -305,13 +700,19 @@ export default function ProductsPage() {
                 )}
 
                 {!cargando && !error && filtrados.map((p) => {
-                  const inactivo = (p.estados ?? "").toLowerCase() === "inactivo";
-                  const disponible = !inactivo && p.stock > 0;
-                  const estadoTexto = inactivo ? "Inactivo" : (p.stock > 0 ? "Disponible" : "Agotado");
-                  const estadoClass = inactivo
+                  const estado = (p.estados ?? "").toLowerCase();
+                  const esDisponible = estado === "disponible";
+                  const esInactivo = estado === "inactivo";
+                  const esNoDisponible = estado === "no disponible";
+                  const esAgotado = (p.stock ?? 0) <= 0;
+                  const estadoTexto = esAgotado ? "Agotado" : (p.estados ?? "Sin estado");
+                  const estadoClass = esInactivo
                     ? "bg-gray-100 text-gray-600 ring-gray-200"
-                    : (p.stock > 0 ? "bg-green-50 text-green-700 ring-green-200" : "bg-gray-50 text-gray-600 ring-gray-200");
-
+                    : esNoDisponible
+                      ? "bg-yellow-50 text-yellow-700 ring-yellow-200"
+                      : esAgotado
+                        ? "bg-orange-50 text-orange-700 ring-orange-200"
+                        : "bg-green-50 text-green-700 ring-green-200";
                   return (
                     <tr key={p.id} className="hover:bg-gray-50/60">
                       <td className="px-6 py-3">{p.nombre}</td>
@@ -335,9 +736,18 @@ export default function ProductsPage() {
                           </button>
 
                           <button
-                            title={inactivo ? "Producto inactivo" : "Solicitar pedido"}
-
-                            disabled={inactivo}
+                            title={
+                              !esDisponible
+                                ? "Producto no disponible"
+                                : esAgotado
+                                  ? "Producto agotado. Solicitar reposición"
+                                  : p.pedidos
+                                    ? "Pedido ya solicitado"
+                                    : "Solicitar pedido"
+                            }
+                            type="button"
+                            onClick={() => abrirModalPedido(p)}
+                            disabled={!esDisponible || p.pedidos}
                             className="rounded-lg border border-gray-200 p-2 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                           >
                             <FaClipboardCheck className="h-4 w-4" />
@@ -345,9 +755,15 @@ export default function ProductsPage() {
 
                           {/* Descontinuar (inactivar) */}
                           <button
-                            title={inactivo ? "Ya está inactivo" : "Descontinuar (inactivar)"}
+                            title={
+                              !esDisponible
+                                ? "No disponible para descontinuar"
+                                : esAgotado
+                                  ? "Producto agotado. Descontinuar"
+                                  : "Descontinuar (inactivar)"
+                            }
                             onClick={() => abrirInactivar(p)}
-                            disabled={inactivo}
+                            disabled={!esDisponible}
                             className="rounded-lg border border-gray-200 p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
                           >
                             <FaBan className="h-4 w-4" />
@@ -373,10 +789,14 @@ export default function ProductsPage() {
         {!cargando && !error && (
           <p className="text-sm text-gray-500">
             Mostrando <span className="font-medium">{filtrados.length}</span> de{" "}
-            <span className="font-medium">{productos.length}</span> productos
+            <span className="font-medium">{totalDisponibles}</span> productos disponibles
           </p>
         )}
       </div>
     </main>
   );
 }
+
+
+
+

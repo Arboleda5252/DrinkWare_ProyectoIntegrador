@@ -1,234 +1,176 @@
 "use client";
+
+import * as React from "react";
+import { FaSpinner, FaClipboardCheck, FaBan } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { FaShoppingCart } from "react-icons/fa";
+
+type Producto = {
+  id: number;
+  nombre: string;
+  categoria: string | null;
+  precio: number;
+  stock: number;
+  estado: string | null;
+  descripcion: string | null;
+  imagen: string | null;
+};
+
+type ProductoApi = Omit<Producto, "estado"> & {
+  estados: string | null;
+};
 
 export default function Page() {
-  const [productos, setProductos] = useState([]);
-  const [carrito, setCarrito] = useState([]);
-  const [mostrarCarrito, setMostrarCarrito] = useState(false);
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroDisponible, setFiltroDisponible] = useState("todos");
-  const [animarCarrito, setAnimarCarrito] = useState(false);
+  const [productos, setProductos] = React.useState<Producto[]>([]);
+  const [cargando, setCargando] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [busqueda, setBusqueda] = React.useState("");
+  const router = useRouter();
 
-  // Conexión con API simulada (puedes reemplazar con tu endpoint real)
-  useEffect(() => {
-    async function obtenerProductos() {
+  React.useEffect(() => {
+    let cancelado = false;
+    (async () => {
       try {
-        const res = await fetch("/api/productos"); // <-- Cambia esto a tu endpoint real
-        if (!res.ok) throw new Error("Error al cargar productos");
-        const data = await res.json();
-        setProductos(data);
-      } catch (error) {
-        console.error("Error al cargar productos:", error);
-        // Si falla la API, usa datos locales de respaldo
-        setProductos([
-          {
-            id: 1,
-            nombre: "Aguardiente Antioqueño",
-            descripcion:
-              "El clásico de Colombia, con sabor anisado y tradición en cada sorbo.",
-            precio: 25000,
-            precioOriginal: 30000,
-            disponible: true,
-            imagen: "/productos/agt1-2.png",
-            referencia: "AGT-001",
-            variaciones: ["750 ml", "1 litro"],
-          },
-          {
-            id: 2,
-            nombre: "Ron Medellín",
-            descripcion:
-              "El ron insignia, con envejecimiento natural que garantiza suavidad y carácter.",
-            precio: 55000,
-            precioOriginal: null,
-            disponible: true,
-            imagen: "/productos/ronMed1-2.png",
-            referencia: "RON-002",
-            variaciones: ["750 ml", "1 litro"],
-          },
-          {
-            id: 3,
-            nombre: "Ron Viejo de Caldas",
-            descripcion:
-              "Reconocido internacionalmente por su suavidad y proceso de añejamiento único.",
-            precio: 48000,
-            precioOriginal: 52000,
-            disponible: true,
-            imagen: "/productos/ronCaldasLitro.png",
-            referencia: "RVC-003",
-            variaciones: ["500 ml", "1 litro"],
-          },
-        ]);
+        setCargando(true);
+        const res = await fetch("/api/productos", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json?.ok) throw new Error(json?.error ?? "Respuesta inválida");
+        if (!cancelado) {
+          const disponibles = (json.data as ProductoApi[])
+            .filter((producto) => (producto.estados ?? "").toLowerCase() === "disponible")
+            .map(({ estados, ...producto }) => ({
+              ...producto,
+              estado: estados,
+            }));
+          setProductos(disponibles);
+        }
+      } catch (e: any) {
+        if (!cancelado) setError(e?.message ?? "Error al cargar productos");
+      } finally {
+        if (!cancelado) setCargando(false);
       }
-    }
-    obtenerProductos();
+    })();
+    return () => {
+      cancelado = true;
+    };
   }, []);
 
-  // Lógica del carrito
-  const agregarAlCarrito = (producto) => {
-    setCarrito([...carrito, producto]);
-    setAnimarCarrito(true);
-    setTimeout(() => setAnimarCarrito(false), 500);
-  };
-
-  const quitarDelCarrito = (index) => {
-    setCarrito(carrito.filter((_, i) => i !== index));
-  };
-
-  const vaciarCarrito = () => {
-    setCarrito([]);
-  };
-
-  const total = carrito.reduce((acc, p) => acc + p.precio, 0);
-
-  // Filtro combinado
-  const productosFiltrados = productos.filter(
-    (p) =>
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase()) &&
-      (filtroDisponible === "todos" ||
-        (filtroDisponible === "disponible" && p.disponible) ||
-        (filtroDisponible === "agotado" && !p.disponible))
-  );
+  const productosFiltrados = React.useMemo(() => {
+    const termino = busqueda.trim().toLowerCase();
+    if (!termino) return productos;
+    return productos.filter((producto) =>
+      producto.nombre.toLowerCase().includes(termino)
+    );
+  }, [productos, busqueda]);
 
   return (
-    <main className="bg-gray-100 font-sans min-h-screen relative">
-      {/* Barra superior */}
-      <nav className="fixed top-0 left-0 w-full bg-black text-white flex justify-between items-center px-6 py-4 shadow-lg z-50">
-        <h1 className="text-2xl font-bold tracking-wide">DrinkWare</h1>
+    <main className="min-h-screen bg-gray-100 py-10 px-4">
+      <h1 className="text-5xl font-bold text-center text-indigo-700 mb-8">
+        Catálogo de Productos
+      </h1>
 
-        <div className="flex items-center space-x-4">
-          {/* Barra de búsqueda */}
-          <input
-            type="text"
-            placeholder="Buscar producto..."
-            className="px-4 py-2 rounded-lg text-black focus:outline-none"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
+      <div className="mx-auto mb-8 max-w-xl">
+        <label className="sr-only" htmlFor="busqueda-productos">
+          Buscar productos por nombre
+        </label>
+        <input
+          id="busqueda-productos"
+          type="search"
+          value={busqueda}
+          onChange={(event) => setBusqueda(event.target.value)}
+          placeholder="Busca por nombre..."
+          className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+        />
+      </div>
 
-          {/* Filtro por disponibilidad */}
-          <select
-            className="px-3 py-2 rounded-lg text-black"
-            value={filtroDisponible}
-            onChange={(e) => setFiltroDisponible(e.target.value)}
-          >
-            <option value="todos">Todos</option>
-            <option value="disponible">Disponible</option>
-            <option value="agotado">Agotado</option>
-          </select>
-
-          {/* Icono del carrito */}
-          <button
-            onClick={() => setMostrarCarrito(true)}
-            className={`relative text-2xl hover:scale-110 transition-transform ${
-              animarCarrito ? "animate-bounce" : ""
-            }`}
-          >
-            
-            {carrito.length > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
-                {carrito.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </nav>
-
-      {/*  Encabezado */}
-      <header className="bg-gradient-to-r from-gray-900 to-gray-700 text-white py-20 text-center mt-20">
-        <h2 className="text-4xl font-extrabold">Catálogo de Productos</h2>
-        <p className="mt-2">Licores colombianos que celebran nuestra tradición</p>
-      </header>
-
-      {/*  Catálogo */}
-      <section className="max-w-6xl mx-auto px-6 py-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-        {productosFiltrados.map((producto) => (
-          <div
-            key={producto.id}
-            className="bg-white rounded-2xl shadow-lg p-4 hover:scale-105 transition-transform"
-          >
-            <Image
-              src={producto.imagen}
-              alt={producto.nombre}
-              width={300}
-              height={200}
-              className="w-full h-60 object-contain"
-            />
-            <h3 className="text-xl font-bold mt-4 text-gray-800">
-              {producto.nombre}
-            </h3>
-            <p className="text-gray-600">{producto.descripcion}</p>
-
-            <div className="mt-3">
-              {producto.precioOriginal && (
-                <span className="line-through text-gray-400 mr-2">
-                  ${producto.precioOriginal.toLocaleString("es-CO")}
-                </span>
-              )}
-              <span className="text-green-600 font-bold text-lg">
-                ${producto.precio.toLocaleString("es-CO")}
-              </span>
-            </div>
-
-            <p
-              className={`mt-1 text-sm ${
-                producto.disponible ? "text-green-600" : "text-red-500"
-              }`}
-            >
-              {producto.disponible ? "Disponible" : "Agotado"}
-            </p>
-
-            <button
-              onClick={() => agregarAlCarrito(producto)}
-              className="mt-4 w-full bg-black text-white py-2 rounded-lg hover:bg-gray-700"
-            >
-              Agregar al carrito
-            </button>
-          </div>
-        ))}
-      </section>
-
-      {/*  Sidebar del carrito */}
-      {mostrarCarrito && (
-        <div className="fixed top-0 right-0 w-80 h-full bg-black text-white shadow-2xl transform transition-transform duration-500 z-50">
-          <div className="p-6 flex justify-between items-center border-b border-gray-700">
-            <h2 className="text-xl font-semibold">Tu Carrito</h2>
-            <button onClick={() => setMostrarCarrito(false)}>❌</button>
-          </div>
-
-          <div className="p-6 space-y-4 overflow-y-auto h-[70%]">
-            {carrito.length === 0 ? (
-              <p className="text-gray-400">El carrito está vacío</p>
-            ) : (
-              carrito.map((item, index) => (
-                <div key={index} className="flex justify-between">
-                  <span>{item.nombre}</span>
-                  <button
-                    onClick={() => quitarDelCarrito(index)}
-                    className="text-red-400 hover:text-red-600"
-                  >
-                    Quitar
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="p-6 border-t border-gray-700">
-            <p className="text-lg font-bold">
-              Total: ${total.toLocaleString("es-CO")}
-            </p>
-            {carrito.length > 0 && (
-              <button
-                onClick={vaciarCarrito}
-                className="mt-4 w-full bg-red-600 py-2 rounded-lg hover:bg-red-700"
-              >
-                Vaciar carrito
-              </button>
-            )}
-          </div>
+      {cargando && (
+        <div className="flex justify-center items-center text-purple-600 text-xl">
+          <FaSpinner className="animate-spin mr-2" />
+          Cargando productos...
         </div>
       )}
+
+      {error && (
+        <div className="flex justify-center items-center text-red-600 text-lg">
+          <FaBan className="mr-2" />
+          {error}
+        </div>
+      )}
+
+      {!cargando && !error && productos.length === 0 && (
+        <div className="text-center text-gray-500">No hay productos disponibles.</div>
+      )}
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {productosFiltrados.map((producto) => {
+          const esDisponible = (producto.estado ?? "").toLowerCase() === "disponible";
+          const stockAgotado = (producto.stock ?? 0) <= 0;
+          const estadoMostrado = stockAgotado ? "Agotado" : (producto.estado ?? "Desconocido");
+          const claseEstado = stockAgotado
+            ? "text-orange-500"
+            : esDisponible
+              ? "text-green-600"
+              : "text-red-500";
+          return (
+            <div
+              key={producto.id}
+              className="bg-white rounded-xl shadow-md overflow-hidden text-center hover:shadow-lg transition-shadow"
+            >
+              <div className="relative flex justify-center items-center p-4 bg-gray-50">
+                <div>
+                  {producto.imagen ? (
+                    <Image
+                      src={producto.imagen}
+                      alt={producto.nombre}
+                      width={300}
+                      height={300}
+                      className="h-80 object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">
+                      Sin imagen
+                    </div>
+                  )}
+                </div>
+                <div className="absolute top-0 right-0 p-4 text-black hover:text-slate-700 text-3xl">
+                  <FaShoppingCart />
+                </div>
+              </div>
+
+
+              <div className="p-4">
+                <h2 className="text-xl font-semibold text-indigo-500">{producto.nombre}</h2>
+                <p className="text-sm text-gray-600">{producto.descripcion}</p>
+                <p className="mt-2 text-green-600 font-bold text-lg">
+                  ${producto.precio.toLocaleString("es-CO")}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Stock: {producto.stock} | Estado:{" "}
+                  <span
+                    className={`font-semibold ${claseEstado}`}
+                  >
+                    {estadoMostrado}
+                  </span>
+                </p>
+                <button
+                  onClick={() => router.push(`/productos/${producto.id}`)}
+                  className="mt-4 w-full bg-black text-white py-2 rounded hover:bg-sky-700 transition-colors flex items-center justify-center"
+                >
+                  <FaClipboardCheck className="mr-2" />
+                  Ver detalles
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {!cargando && !error && productos.length > 0 && productosFiltrados.length === 0 && (
+          <div className="col-span-full rounded-lg border border-dashed border-gray-300 bg-white py-10 text-center text-gray-500">
+            No encontramos productos que coincidan con "{busqueda.trim()}".
+          </div>
+        )}
+      </div>
     </main>
   );
 }
