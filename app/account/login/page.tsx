@@ -28,6 +28,11 @@ export default function Page() {
       const json = await res.json();
       if (res.ok && json.ok) {
         router.push("/user");
+        if (typeof (router as any).refresh === "function") {
+          (router as any).refresh();
+        } else if (typeof globalThis !== "undefined" && globalThis.location) {
+          globalThis.location.reload();
+        }
       } else {
         alert(json.error || "Credenciales incorrectas");
       }

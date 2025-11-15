@@ -23,6 +23,15 @@ type ProductoDetalle = Producto & {
   id_proveedor: number | null;
 };
 
+type PedidoProveedor = {
+  id: number;
+  producto_id: number;
+  cantidad: number;
+  estado: string;
+  descripcion: string | null;
+  creado_en: string;
+};
+
 const Search = () => (
   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
     <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
@@ -41,10 +50,13 @@ export default function ProveedorPedidosPage() {
 
   // modales y control de acciones
   const [modalPedidosAdminAbierto, setModalPedidosAdminAbierto] = React.useState(false);
-  const [activandoId, setActivandoId] = React.useState<number | null>(null);
-  const [rechazandoId, setRechazandoId] = React.useState<number | null>(null);
-  const [errorActivar, setErrorActivar] = React.useState<string | null>(null);
-  const [errorRechazar, setErrorRechazar] = React.useState<string | null>(null);
+  const [pedidosProveedor, setPedidosProveedor] = React.useState<PedidoProveedor[]>([]);
+  const [cargandoPedidosProveedor, setCargandoPedidosProveedor] = React.useState(true);
+  const [errorPedidosProveedor, setErrorPedidosProveedor] = React.useState<string | null>(null);
+  const [errorSolicitudes, setErrorSolicitudes] = React.useState<string | null>(null);
+  const [mensajeSolicitudes, setMensajeSolicitudes] = React.useState<string | null>(null);
+  const [procesandoPedidoId, setProcesandoPedidoId] = React.useState<number | null>(null);
+  const [notasPedidos, setNotasPedidos] = React.useState<Record<number, string>>({});
   const [modalPedidoAbierto, setModalPedidoAbierto] = React.useState(false);
   const [productoPedido, setProductoPedido] = React.useState<Producto | null>(null);
   const [cantidadPedido, setCantidadPedido] = React.useState<string>("");
@@ -73,6 +85,27 @@ export default function ProveedorPedidosPage() {
     };
   }, []);
 
+  React.useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        setCargandoPedidosProveedor(true);
+        const res = await fetch("/api/productos/productosPedidos", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json?.ok) throw new Error(json?.error ?? "No fue posible cargar los pedidos");
+        if (!cancelado) setPedidosProveedor(json.data as PedidoProveedor[]);
+      } catch (e: any) {
+        if (!cancelado) setErrorPedidosProveedor(e?.message ?? "Error al cargar las solicitudes");
+      } finally {
+        if (!cancelado) setCargandoPedidosProveedor(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   const categorias = React.useMemo(() => {
     const set = new Set<string>(productos.map((p) => p.categoria ?? "Sin categoria"));
     return ["Todas", ...Array.from(set).sort((a, b) => a.localeCompare(b, "es"))];
@@ -90,23 +123,90 @@ export default function ProveedorPedidosPage() {
     });
   }, [productos, query, filtroCategoria]);
 
-  const pedidosAdministrador = React.useMemo(
-    () => productos.filter((p) => p.pedidos),
-    [productos]
-  );
+  const productosPorId = React.useMemo(() => {
+    const mapa = new Map<number, Producto>();
+    productos.forEach((producto) => mapa.set(producto.id, producto));
+    return mapa;
+  }, [productos]);
+
+  const pedidosAdministrador = React.useMemo(() => {
+    return pedidosProveedor
+      .filter((pedido) => (pedido.estado ?? "").toLowerCase() === "pendiente")
+      .map((pedido) => {
+        const producto = productosPorId.get(pedido.producto_id);
+        if (!producto) return null;
+        return { pedido, producto };
+      })
+      .filter((entrada): entrada is { pedido: PedidoProveedor; producto: Producto } => Boolean(entrada));
+  }, [pedidosProveedor, productosPorId]);
   const totalProductos = React.useMemo(() => productos.length, [productos]);
 
   const abrirPedidosAdministrador = () => {
-    setErrorActivar(null);
-    setErrorRechazar(null);
+    setErrorSolicitudes(null);
+    setMensajeSolicitudes(null);
     setModalPedidosAdminAbierto(true);
   };
   const cerrarPedidosAdministrador = () => {
     setModalPedidosAdminAbierto(false);
-    setErrorActivar(null);
-    setErrorRechazar(null);
-    setActivandoId(null);
-    setRechazandoId(null);
+    setErrorSolicitudes(null);
+    setMensajeSolicitudes(null);
+    setProcesandoPedidoId(null);
+  };
+
+  const actualizarPedidoTrasAccion = (pedidoActualizado: PedidoProveedor, nuevoStock?: number) => {
+    setPedidosProveedor((prev) =>
+      prev.map((pedido) => (pedido.id === pedidoActualizado.id ? pedidoActualizado : pedido))
+    );
+    setProductos((prev) =>
+      prev.map((producto) => {
+        if (producto.id !== pedidoActualizado.producto_id) return producto;
+        return {
+          ...producto,
+          stock: nuevoStock !== undefined ? nuevoStock : producto.stock,
+          pedidos: false,
+        };
+      })
+    );
+    setNotasPedidos((prev) => {
+      if (!(pedidoActualizado.id in prev)) return prev;
+      const { [pedidoActualizado.id]: _, ...resto } = prev;
+      return resto;
+    });
+  };
+
+  const procesarPedidoAdministrador = async (pedidoId: number, accion: "aceptar" | "rechazar") => {
+    setProcesandoPedidoId(pedidoId);
+    setErrorSolicitudes(null);
+    setMensajeSolicitudes(null);
+    try {
+      const descripcion = notasPedidos[pedidoId] ?? null;
+      const res = await fetch("/api/productos/productosPedidos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedido_id: pedidoId, accion, descripcion }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
+      }
+
+      const pedidoActualizado = json?.data?.pedido as PedidoProveedor | undefined;
+      if (!pedidoActualizado) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+
+      const nuevoStock: number | undefined = json?.data?.producto?.stock;
+      actualizarPedidoTrasAccion(pedidoActualizado, accion === "aceptar" ? nuevoStock : undefined);
+      setMensajeSolicitudes(
+        accion === "aceptar"
+          ? "Solicitud aceptada y stock actualizado."
+          : "Solicitud rechazada correctamente."
+      );
+    } catch (e: any) {
+      setErrorSolicitudes(e?.message ?? "No fue posible procesar la solicitud.");
+    } finally {
+      setProcesandoPedidoId(null);
+    }
   };
 
   const enviarPedido = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -132,41 +232,15 @@ export default function ProveedorPedidosPage() {
     }
   };
 
-  const rechazarPedido = async (producto: Producto) => {
-    setErrorRechazar(null);
-    setRechazandoId(producto.id);
-    try {
-      const res = await fetch(`/api/productos/${producto.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accion: "inactivar" }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error ?? `HTTP ${res.status}`);
-      }
-
-      setProductos((prev) =>
-        prev.map((p) => (p.id === producto.id ? { ...p, estados: "Inactivo", pedidos: false } : p))
-      );
-    } catch (e: any) {
-      setErrorRechazar(e?.message ?? "Error al rechazar el pedido");
-    } finally {
-      setRechazandoId(null);
-    }
-  };
-
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       {modalPedidosAdminAbierto && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-10">
-          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-lg">
+          <div className="relative w-full max-w-5xl rounded-2xl bg-white p-6 shadow-lg">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-center text-gray-900">Pedidos</h2>
-                <p className="text-sm text-gray-500 py-2">
-                  Revisa las solicitudes 
-                </p>
+                <h2 className="text-xl font-semibold text-center text-gray-900">Pedidos del Drinkware</h2>
+                <p className="text-sm text-gray-500 py-2">Responder las solicitudes pendientes.</p>
               </div>
               <button
                 type="button"
@@ -177,53 +251,110 @@ export default function ProveedorPedidosPage() {
               </button>
             </div>
 
-            {(errorActivar || errorRechazar) && (
+            {errorPedidosProveedor && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {errorActivar ?? errorRechazar}
+                {errorPedidosProveedor}
+              </div>
+            )}
+
+            {errorSolicitudes && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorSolicitudes}
+              </div>
+            )}
+
+            {mensajeSolicitudes && (
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                {mensajeSolicitudes}
               </div>
             )}
 
             <div className="mt-4 max-h-[60vh] overflow-y-auto">
-              {pedidosAdministrador.length > 0 ? (
+              {cargandoPedidosProveedor ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-600">
+                  <FaSpinner className="h-4 w-4 animate-spin" />
+                  <span>Cargando solicitudes...</span>
+                </div>
+              ) : pedidosAdministrador.length > 0 ? (
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-left text-gray-600">
+                  <thead className="bg-gray-50 text-center text-gray-600">
                     <tr>
                       <th className="px-4 py-2 font-semibold">Producto</th>
                       <th className="px-4 py-2 font-semibold">Categoria</th>
                       <th className="px-4 py-2 font-semibold">Precio</th>
-                      <th className="px-4 py-2 font-semibold">Stock</th>
-                      <th className="px-4 py-2 font-semibold">Descripcion</th>
+                      <th className="px-4 py-2 font-semibold text-center">Cantidad</th>
                       <th className="px-4 py-2 font-semibold">Imagen</th>
-                      <th className="px-4 py-2 font-semibold text-right">Acciones</th>
+                      <th className="px-4 py-2 font-semibold">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {pedidosAdministrador.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-center">{p.nombre}</td>
-                        <td className="px-4 py-2">{p.categoria ?? "Sin categoria"}</td>
-                        <td className="px-4 py-2">{MONEDA.format(p.precio)}</td>
-                        <td className="px-4 py-2">{p.stock}</td>
-                        <td className="px-4 py-2 text-xs max-w-[220px] text-gray-600">
-                          {p.descripcion ? (
-                            <span title={p.descripcion}>
-                              {p.descripcion.length > 90 ? `${p.descripcion.slice(0, 90)}...` : p.descripcion}
-                            </span>
-                          ) : (
-                            <span className="italic text-gray-400">Sin descripcion</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2">
-                          {p.imagen ? (
-                            <div className="relative h-14 w-14 overflow-hidden rounded-md border border-gray-200">
-                              <Image src={p.imagen} alt={p.nombre} fill className="object-cover" sizes="56px" />
+                    {pedidosAdministrador.map(({ pedido, producto }) => {
+                      const notaActual = notasPedidos[pedido.id] ?? "";
+                      return (
+                        <tr key={pedido.id} className="align-top hover:bg-gray-50">
+                          <td className="px-4 py-2 text-center font-semibold text-gray-900">{producto.nombre}</td>
+                          <td className="px-4 py-2">{producto.categoria ?? "Sin categoria"}</td>
+                          <td className="px-4 py-2">{MONEDA.format(producto.precio)}</td>
+                          <td className="px-4 py-2 text-center font-semibold text-gray-900">{pedido.cantidad}</td>
+                          <td className="px-4 py-2">
+                            {producto.imagen ? (
+                              <div className="relative h-14 w-14 overflow-hidden rounded-md border border-gray-200">
+                                <Image src={producto.imagen} alt={producto.nombre} fill className="object-cover" sizes="56px" />
+                              </div>
+                            ) : (
+                              <span className="text-xs italic text-gray-400">Sin imagen</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="space-y-2">
+                              <div>
+                                <p className="text-[11px] font-semibold uppercase text-gray-400">Comentarios</p>
+                                <p className="text-xs text-gray-600">
+                                  {pedido.descripcion ? pedido.descripcion : ""}
+                                </p>
+                              </div>
+                              <textarea
+                                value={notaActual}
+                                onChange={(event) =>
+                                  setNotasPedidos((prev) => ({ ...prev, [pedido.id]: event.target.value }))
+                                }
+                                placeholder="Agrega una nota antes de responder"
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                rows={3}
+                              />
+                              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => procesarPedidoAdministrador(pedido.id, "rechazar")}
+                                  disabled={procesandoPedidoId === pedido.id}
+                                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-70"
+                                >
+                                  {procesandoPedidoId === pedido.id ? (
+                                    <FaSpinner className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <FaBan className="h-4 w-4" />
+                                  )}
+                                  Rechazar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => procesarPedidoAdministrador(pedido.id, "aceptar")}
+                                  disabled={procesandoPedidoId === pedido.id}
+                                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 font-semibold text-white hover:bg-green-700 disabled:opacity-70"
+                                >
+                                  {procesandoPedidoId === pedido.id ? (
+                                    <FaSpinner className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <MdEventAvailable className="h-4 w-4" />
+                                  )}
+                                  Aceptar
+                                </button>
+                              </div>
                             </div>
-                          ) : (
-                            <span className="text-xs italic text-gray-400">Sin imagen</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               ) : (

@@ -200,8 +200,8 @@ export default function ProductsPage() {
     if (!productoPedido) return;
 
     const cantidad = Number(cantidadPedido);
-    if (!Number.isFinite(cantidad) || cantidad <= 0) {
-      setErrorPedido("Ingresa una cantidad mayor a cero.");
+    if (!Number.isFinite(cantidad) || cantidad <= 0 || !Number.isInteger(cantidad)) {
+      setErrorPedido("Ingresa una cantidad entera mayor a cero.");
       return;
     }
 
@@ -330,6 +330,7 @@ export default function ProductsPage() {
                   name="cantidadPedido"
                   type="number"
                   min={1}
+                  step={1}
                   value={cantidadPedido}
                   onChange={(event) => setCantidadPedido(event.target.value)}
                   placeholder="0"
@@ -740,7 +741,7 @@ export default function ProductsPage() {
                               !esDisponible
                                 ? "Producto no disponible"
                                 : esAgotado
-                                  ? "Producto agotado. Solicitar reposición"
+                                  ? "Producto agotado. Solicitar pedido"
                                   : p.pedidos
                                     ? "Pedido ya solicitado"
                                     : "Solicitar pedido"

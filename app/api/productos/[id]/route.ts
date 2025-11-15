@@ -31,7 +31,12 @@ export async function GET(
         p.imagen,
         p.descripcion,
         p.id_proveedor,
-        p.pedidos AS pedidos,
+        EXISTS (
+          SELECT 1
+          FROM public.pedidosproveedor AS pp
+          WHERE pp.producto_id = p.idproducto
+            AND pp.estado = 'Pendiente'
+        ) AS pedidos,
         p.estados
       FROM public.producto AS p
       WHERE p.idproducto = $1
@@ -62,44 +67,97 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
     }
 
-    let accion = "inactivar";
+    let body: any = null;
     try {
-      const body = await req.json();
-      if (body && typeof body.accion === "string") {
-        accion = body.accion.toLowerCase();
-      }
+      body = await req.json();
     } catch {
-      // 
+      body = null;
     }
 
-    if (accion === "solicitar_pedido") {
-      const { rows } = await sql<{ id: number; pedidos: boolean }>(`
-        UPDATE public.producto
-        SET pedidos = TRUE
-        WHERE idproducto = $1
-        RETURNING idproducto AS id, pedidos;
-      `, [id]);
+    const accion =
+      typeof body?.accion === "string" ? body.accion.toLowerCase() : "inactivar";
 
-      if (rows.length === 0) {
+    let productoExisteCache: boolean | null = null;
+    const asegurarProductoExiste = async () => {
+      if (productoExisteCache !== null) {
+        return productoExisteCache;
+      }
+      const { rows } = await sql<{ existe: boolean }>(`
+        SELECT EXISTS(
+          SELECT 1
+          FROM public.producto
+          WHERE idproducto = $1
+        ) AS existe;
+      `, [id]);
+      productoExisteCache = Boolean(rows[0]?.existe);
+      return productoExisteCache;
+    };
+
+    if (accion === "solicitar_pedido") {
+      const cantidad = Number(body?.cantidad);
+      if (!Number.isInteger(cantidad) || cantidad <= 0) {
+        return NextResponse.json(
+          { ok: false, error: "La cantidad debe ser un entero mayor a cero" },
+          { status: 400 }
+        );
+      }
+
+      const descripcion =
+        body?.descripcion === null
+          ? null
+          : typeof body?.descripcion === "string"
+          ? body.descripcion.trim() || null
+          : null;
+
+      if (!(await asegurarProductoExiste())) {
         return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
       }
 
-      return NextResponse.json({ ok: true, data: rows[0] });
+      const { rows: pendientes } = await sql<{ existe: boolean }>(`
+        SELECT EXISTS(
+          SELECT 1
+          FROM public.pedidosproveedor AS pp
+          WHERE pp.producto_id = $1
+            AND pp.estado = 'Pendiente'
+        ) AS existe;
+      `, [id]);
+
+      if (pendientes[0]?.existe) {
+        return NextResponse.json(
+          { ok: false, error: "Ya existe una solicitud pendiente para este producto" },
+          { status: 409 }
+        );
+      }
+
+      const { rows } = await sql<{
+        id: number;
+        producto_id: number;
+        cantidad: number;
+        estado: string;
+        descripcion: string | null;
+        creado_en: string;
+      }>(`
+        INSERT INTO public.pedidosproveedor (producto_id, cantidad, descripcion)
+        VALUES ($1, $2, $3)
+        RETURNING id, producto_id, cantidad, estado, descripcion, creado_en;
+      `, [id, cantidad, descripcion]);
+
+      return NextResponse.json({ ok: true, data: rows[0] }, { status: 201 });
     }
 
     if (accion === "limpiar_pedido") {
-      const { rows } = await sql<{ id: number; pedidos: boolean }>(`
-        UPDATE public.producto
-        SET pedidos = FALSE
-        WHERE idproducto = $1
-        RETURNING idproducto AS id, pedidos;
-      `, [id]);
-
-      if (rows.length === 0) {
+      if (!(await asegurarProductoExiste())) {
         return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
       }
 
-      return NextResponse.json({ ok: true, data: rows[0] });
+      const { rows } = await sql<{ id: number }>(`
+        DELETE FROM public.pedidosproveedor
+        WHERE producto_id = $1
+          AND estado = 'Pendiente'
+        RETURNING id;
+      `, [id]);
+
+      return NextResponse.json({ ok: true, data: { eliminados: rows.length } });
     }
 
     const estadoPorAccion: Record<string, string> = {
@@ -174,16 +232,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body?.id_proveedor === null || body?.id_proveedor === undefined
         ? null
         : Number(body.id_proveedor);
-    let pedidos: boolean | null = null;
-    if (body?.pedidos !== undefined) {
-      if (typeof body.pedidos !== 'boolean') {
-        return NextResponse.json(
-          { ok: false, error: 'Los pedidos deben ser un valor booleano' },
-          { status: 400 }
-        );
-      }
-      pedidos = body.pedidos;
-    }
     const estados =
       body?.estados === undefined
         ? null
@@ -234,8 +282,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         imagen = $6,
         descripcion = $7,
         id_proveedor = $8,
-        pedidos = COALESCE($9, pedidos),
-        estados = COALESCE($10, estados)
+        estados = COALESCE($9, estados)
       WHERE idproducto = $1
       RETURNING
         idproducto AS id,
@@ -246,7 +293,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         imagen,
         descripcion,
         id_proveedor,
-        pedidos AS pedidos,
+        EXISTS (
+          SELECT 1
+          FROM public.pedidosproveedor AS pp
+          WHERE pp.producto_id = public.producto.idproducto
+            AND pp.estado = 'Pendiente'
+        ) AS pedidos,
         estados;
     `, [
       id,
@@ -257,7 +309,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       imagen,
       descripcion,
       idProveedor,
-      pedidos,
       estados,
     ]);
 
