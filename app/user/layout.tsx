@@ -69,14 +69,19 @@ export default async function UserLayout({ children }: UserLayoutProps) {
 function getLinksByRole(roleId: number | null | undefined): MenuLink[] {
   const defaultLinks: MenuLink[] = [
     { href: "/user/usuario", label: "Mi cuenta" },
-    { href: "/user/usuario/alertas", label: "Notificaciones" },
     { href: "/user/usuario/compras", label: "Mis compras" },
   ];
 
   switch (roleId) {
+    case 1:
+     return [
+        ...defaultLinks,
+        { href: "/user/usuario/alertas", label: "Notificaciones" },
+      ];
     case 2:
       return [
         ...defaultLinks,
+        { href: "/user/admin/alertas", label: "Notificaciones" },
         { href: "/user/admin", label: "Gestión de usuarios" },
         { href: "/user/admin/products", label: "Gestión de productos" },
         { href: "/user/admin/repVentas", label: "Reporte de Ventas" },
@@ -85,7 +90,6 @@ function getLinksByRole(roleId: number | null | undefined): MenuLink[] {
       return [
         ...defaultLinks,
         { href: "/user/vendedor", label: "Gestión de ventas" },
-        { href: "/user/vendedor/atencion", label: "Atención al cliente" },
       ];
     case 5:
       return [
