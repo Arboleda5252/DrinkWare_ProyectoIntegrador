@@ -1,7 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { FaSpinner, FaClipboardCheck, FaBan, FaShoppingCart, FaTrash, FaMinus, FaPlus } from "react-icons/fa";
+import {
+  FaSpinner,
+  FaClipboardCheck,
+  FaBan,
+  FaShoppingCart,
+  FaTrash,
+  FaMinus,
+  FaPlus,
+  FaTimes,
+} from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -45,6 +54,13 @@ export default function Page() {
   const [precioFiltro, setPrecioFiltro] = React.useState("0");
   const [orden, setOrden] = React.useState("");
 
+  // PAGINACION
+  const [pagina, setPagina] = React.useState(1);
+  const productosPorPagina = 10;
+
+  // MODAL DETALLES
+  const [modalProducto, setModalProducto] = React.useState<Producto | null>(null);
+
   // CARRITO
   const [carrito, setCarrito] = React.useState<ItemCarrito[]>([]);
   const [drawerAbierto, setDrawerAbierto] = React.useState(false);
@@ -64,8 +80,14 @@ export default function Page() {
 
         if (!cancelado) {
           const disponibles = (json.data as ProductoApi[])
-            .filter((producto) => (producto.estados ?? "").toLowerCase() === "disponible")
-            .map(({ estados, ...producto }) => ({ ...producto, estado: estados }));
+            .filter(
+              (producto) =>
+                (producto.estados ?? "").toLowerCase() === "disponible"
+            )
+            .map(({ estados, ...producto }) => ({
+              ...producto,
+              estado: estados,
+            }));
 
           setProductos(disponibles);
         }
@@ -86,34 +108,46 @@ export default function Page() {
   const productosFiltrados = React.useMemo(() => {
     let lista = [...productos];
 
-    // BÚSQUEDA
     const termino = busqueda.trim().toLowerCase();
     if (termino) {
-      lista = lista.filter((p) => p.nombre.toLowerCase().includes(termino));
+      lista = lista.filter((p) =>
+        p.nombre.toLowerCase().includes(termino)
+      );
     }
 
-    // CATEGORÍA
     if (categoriaFiltro) {
-      lista = lista.filter((p) => p.categoria?.toLowerCase() === categoriaFiltro.toLowerCase());
+      lista = lista.filter(
+        (p) =>
+          p.categoria?.toLowerCase() === categoriaFiltro.toLowerCase()
+      );
     }
 
-    // MARCA
     if (marcaFiltro) {
-      lista = lista.filter((p) => p.descripcion?.toLowerCase().includes(marcaFiltro.toLowerCase()));
+      lista = lista.filter((p) =>
+        p.descripcion?.toLowerCase().includes(marcaFiltro.toLowerCase())
+      );
     }
 
-    // PRECIO
     if (precioFiltro !== "0") {
       const max = Number(precioFiltro);
       lista = lista.filter((p) => p.precio <= max);
     }
 
-    // ORDEN
     if (orden === "asc") lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
     if (orden === "desc") lista.sort((a, b) => b.nombre.localeCompare(a.nombre));
 
     return lista;
   }, [productos, busqueda, categoriaFiltro, marcaFiltro, precioFiltro, orden]);
+
+  // ------------------------
+  // PAGINACIÓN
+  // ------------------------
+  const totalPaginas = Math.ceil(productosFiltrados.length / productosPorPagina);
+
+  const productosPagina = React.useMemo(() => {
+    const inicio = (pagina - 1) * productosPorPagina;
+    return productosFiltrados.slice(inicio, inicio + productosPorPagina);
+  }, [productosFiltrados, pagina]);
 
   // =========================================================
   // MANEJO DE CARRITO
@@ -127,18 +161,33 @@ export default function Page() {
           p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
         );
       }
-      return [...prev, { id: producto.id, nombre: producto.nombre, precio: producto.precio, imagen: producto.imagen, cantidad: 1 }];
+      return [
+        ...prev,
+        {
+          id: producto.id,
+          nombre: producto.nombre,
+          precio: producto.precio,
+          imagen: producto.imagen,
+          cantidad: 1,
+        },
+      ];
     });
   };
 
   const aumentar = (id: number) => {
-    setCarrito((prev) => prev.map((p) => (p.id === id ? { ...p, cantidad: p.cantidad + 1 } : p)));
+    setCarrito((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, cantidad: p.cantidad + 1 } : p
+      )
+    );
   };
 
   const disminuir = (id: number) => {
     setCarrito((prev) =>
       prev
-        .map((p) => (p.id === id ? { ...p, cantidad: Math.max(1, p.cantidad - 1) } : p))
+        .map((p) =>
+          p.id === id ? { ...p, cantidad: Math.max(1, p.cantidad - 1) } : p
+        )
         .filter((p) => p.cantidad > 0)
     );
   };
@@ -149,7 +198,10 @@ export default function Page() {
 
   const vaciarCarrito = () => setCarrito([]);
 
-  const total = carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
+  const total = carrito.reduce(
+    (acc, item) => acc + item.precio * item.cantidad,
+    0
+  );
 
   // =========================================================
   // UI
@@ -157,9 +209,7 @@ export default function Page() {
 
   return (
     <main className="min-h-screen bg-gray-100 py-10 px-4 relative">
-      {/* ------------------------------------------------------ */}
-      {/* BOTÓN FLOTANTE DEL CARRITO */}
-      {/* ------------------------------------------------------ */}
+      {/* BOTÓN DEL CARRITO */}
       <button
         onClick={() => setDrawerAbierto(true)}
         className="fixed top-6 right-6 bg-black text-white p-4 rounded-full shadow-lg hover:bg-gray-800 flex items-center gap-2 text-lg"
@@ -172,9 +222,7 @@ export default function Page() {
         Catálogo de Productos
       </h1>
 
-      {/* ------------------------------------------------------ */}
-      {/* BARRA DE BÚSQUEDA */}
-      {/* ------------------------------------------------------ */}
+      {/* BÚSQUEDA */}
       <div className="mx-auto mb-8 max-w-xl">
         <input
           type="search"
@@ -185,11 +233,13 @@ export default function Page() {
         />
       </div>
 
-      {/* ------------------------------------------------------ */}
       {/* FILTROS */}
-      {/* ------------------------------------------------------ */}
       <div className="flex flex-wrap gap-4 justify-center mb-10">
-        <select className="p-2 border rounded" value={categoriaFiltro} onChange={(e) => setCategoriaFiltro(e.target.value)}>
+        <select
+          className="p-2 border rounded"
+          value={categoriaFiltro}
+          onChange={(e) => setCategoriaFiltro(e.target.value)}
+        >
           <option value="">Categoría</option>
           <option value="tecnologia">Tecnología</option>
           <option value="ropa">Ropa</option>
@@ -204,23 +254,29 @@ export default function Page() {
           onChange={(e) => setMarcaFiltro(e.target.value)}
         />
 
-        <select className="p-2 border rounded" value={precioFiltro} onChange={(e) => setPrecioFiltro(e.target.value)}>
+        <select
+          className="p-2 border rounded"
+          value={precioFiltro}
+          onChange={(e) => setPrecioFiltro(e.target.value)}
+        >
           <option value="0">Precio máximo</option>
           <option value="50000">$50.000</option>
           <option value="100000">$100.000</option>
           <option value="300000">$300.000</option>
         </select>
 
-        <select className="p-2 border rounded" value={orden} onChange={(e) => setOrden(e.target.value)}>
+        <select
+          className="p-2 border rounded"
+          value={orden}
+          onChange={(e) => setOrden(e.target.value)}
+        >
           <option value="">Ordenar</option>
           <option value="asc">A - Z</option>
           <option value="desc">Z - A</option>
         </select>
       </div>
 
-      {/* ------------------------------------------------------ */}
-      {/* MENSAJES DE ESTADO */}
-      {/* ------------------------------------------------------ */}
+      {/* MENSAJES */}
       {cargando && (
         <div className="flex justify-center items-center text-purple-600 text-xl">
           <FaSpinner className="animate-spin mr-2" /> Cargando productos...
@@ -231,16 +287,17 @@ export default function Page() {
 
       {!cargando && !error && productosFiltrados.length === 0 && (
         <div className="text-center text-gray-600 text-xl mt-10 border p-6 rounded-lg bg-white">
-          No se encontraron productos con los filtros aplicados.
+          No se encontraron productos.
         </div>
       )}
 
-      {/* ------------------------------------------------------ */}
-      {/* GRID DE PRODUCTOS */}
-      {/* ------------------------------------------------------ */}
+      {/* GRID DE PRODUCTOS (10 por página) */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {productosFiltrados.map((producto) => (
-          <div key={producto.id} className="bg-white rounded-xl shadow-md overflow-hidden text-center">
+        {productosPagina.map((producto) => (
+          <div
+            key={producto.id}
+            className="bg-white rounded-xl shadow-md overflow-hidden text-center"
+          >
             <div className="relative p-4 bg-gray-50 flex justify-center">
               <Image
                 src={producto.imagen || "/no-image.png"}
@@ -259,15 +316,16 @@ export default function Page() {
             </div>
 
             <div className="p-4">
-              <h2 className="text-xl font-semibold text-indigo-500">{producto.nombre}</h2>
-              <p className="text-sm">{producto.descripcion}</p>
+              <h2 className="text-xl font-semibold text-indigo-500">
+                {producto.nombre}
+              </h2>
 
               <p className="mt-2 text-green-600 font-bold text-lg">
                 ${producto.precio.toLocaleString("es-CO")}
               </p>
 
               <button
-                onClick={() => router.push(`/productos/${producto.id}`)}
+                onClick={() => setModalProducto(producto)}
                 className="mt-4 w-full bg-black text-white py-2 rounded"
               >
                 <FaClipboardCheck className="inline mr-2" /> Ver Detalles
@@ -277,12 +335,104 @@ export default function Page() {
         ))}
       </div>
 
-      {/* ========================================================= */}
-      {/* DRAWER DEL CARRITO */}
-      {/* ========================================================= */}
+      {/* PAGINACIÓN */}
+      <div className="flex justify-center gap-3 mt-10">
+        <button
+          disabled={pagina === 1}
+          onClick={() => setPagina((p) => p - 1)}
+          className="px-4 py-2 bg-gray-300 rounded disabled:opacity-40"
+        >
+          Anterior
+        </button>
 
+        {[...Array(totalPaginas)].map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setPagina(i + 1)}
+            className={`px-4 py-2 rounded ${
+              pagina === i + 1
+                ? "bg-black text-white"
+                : "bg-gray-200 hover:bg-gray-300"
+            }`}
+          >
+            {i + 1}
+          </button>
+        ))}
+
+        <button
+          disabled={pagina === totalPaginas}
+          onClick={() => setPagina((p) => p + 1)}
+          className="px-4 py-2 bg-gray-300 rounded disabled:opacity-40"
+        >
+          Siguiente
+        </button>
+      </div>
+
+      {/* ========================================================= */}
+      {/* MODAL DETALLES */}
+      {/* ========================================================= */}
+      {modalProducto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+          <div className="bg-white w-[90%] md:w-[600px] rounded-xl shadow-xl p-6 relative">
+            {/* Cerrar */}
+            <button
+              onClick={() => setModalProducto(null)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black"
+            >
+              <FaTimes size={22} />
+            </button>
+
+            <div className="flex flex-col items-center">
+              <Image
+                src={modalProducto.imagen || "/no-image.png"}
+                width={300}
+                height={300}
+                alt={modalProducto.nombre}
+                className="rounded-lg mb-4"
+              />
+
+              <h2 className="text-3xl font-bold text-indigo-600 mb-3">
+                {modalProducto.nombre}
+              </h2>
+
+              <p className="text-lg text-gray-700 mb-2">
+                <strong>Precio:</strong> ${modalProducto.precio.toLocaleString("es-CO")}
+              </p>
+
+              <p className="text-lg text-gray-700 mb-2">
+                <strong>Categoría:</strong> {modalProducto.categoria}
+              </p>
+
+              <p className="text-lg text-gray-700 mb-2">
+                <strong>Stock:</strong> {modalProducto.stock}
+              </p>
+
+              <p className="text-lg text-gray-700 mb-4">
+                <strong>Descripción:</strong> {modalProducto.descripcion}
+              </p>
+
+              <button
+                onClick={() => {
+                  agregarAlCarrito(modalProducto);
+                  setModalProducto(null);
+                }}
+                className="mt-4 bg-black text-white px-6 py-2 rounded-lg"
+              >
+                Agregar al carrito
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* DRAWER CARRITO */}
+      {/* ========================================================= */}
       {drawerAbierto && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-40" onClick={() => setDrawerAbierto(false)}></div>
+        <div
+          className="fixed inset-0 bg-black bg-opacity-40 z-40"
+          onClick={() => setDrawerAbierto(false)}
+        ></div>
       )}
 
       <div
@@ -295,12 +445,17 @@ export default function Page() {
         </h2>
 
         {carrito.length === 0 ? (
-          <p className="text-gray-500 text-center mt-10">Tu carrito está vacío</p>
+          <p className="text-gray-500 text-center mt-10">
+            Tu carrito está vacío
+          </p>
         ) : (
           <>
             <ul className="max-h-[60vh] overflow-y-auto pr-2 space-y-4">
               {carrito.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 border-b pb-3">
+                <li
+                  key={item.id}
+                  className="flex items-center gap-3 border-b pb-3"
+                >
                   <Image
                     src={item.imagen || "/no-image.png"}
                     alt={item.nombre}
@@ -316,17 +471,26 @@ export default function Page() {
                     </p>
 
                     <div className="flex items-center gap-2 mt-2">
-                      <button className="p-1 bg-gray-200 rounded" onClick={() => disminuir(item.id)}>
+                      <button
+                        className="p-1 bg-gray-200 rounded"
+                        onClick={() => disminuir(item.id)}
+                      >
                         <FaMinus />
                       </button>
                       <span>{item.cantidad}</span>
-                      <button className="p-1 bg-gray-200 rounded" onClick={() => aumentar(item.id)}>
+                      <button
+                        className="p-1 bg-gray-200 rounded"
+                        onClick={() => aumentar(item.id)}
+                      >
                         <FaPlus />
                       </button>
                     </div>
                   </div>
 
-                  <button className="text-red-600" onClick={() => eliminar(item.id)}>
+                  <button
+                    className="text-red-600"
+                    onClick={() => eliminar(item.id)}
+                  >
                     <FaTrash />
                   </button>
                 </li>
@@ -334,7 +498,9 @@ export default function Page() {
             </ul>
 
             <div className="mt-6">
-              <p className="text-xl font-bold">Total: ${total.toLocaleString("es-CO")}</p>
+              <p className="text-xl font-bold">
+                Total: ${total.toLocaleString("es-CO")}
+              </p>
 
               <button
                 onClick={vaciarCarrito}
