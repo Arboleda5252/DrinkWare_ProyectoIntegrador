@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { FaSpinner, FaClipboardCheck, FaBan } from "react-icons/fa";
+import { FaSpinner, FaClipboardCheck, FaBan, FaShoppingCart, FaTrash, FaMinus, FaPlus } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { FaShoppingCart } from "react-icons/fa";
 
 type Producto = {
   id: number;
@@ -21,13 +20,38 @@ type ProductoApi = Omit<Producto, "estado"> & {
   estados: string | null;
 };
 
+type ItemCarrito = {
+  id: number;
+  nombre: string;
+  precio: number;
+  imagen: string | null;
+  cantidad: number;
+};
+
 export default function Page() {
+  const router = useRouter();
+
+  // ------------------------
+  // ESTADOS
+  // ------------------------
   const [productos, setProductos] = React.useState<Producto[]>([]);
   const [cargando, setCargando] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [busqueda, setBusqueda] = React.useState("");
-  const router = useRouter();
 
+  // FILTROS
+  const [categoriaFiltro, setCategoriaFiltro] = React.useState("");
+  const [marcaFiltro, setMarcaFiltro] = React.useState("");
+  const [precioFiltro, setPrecioFiltro] = React.useState("0");
+  const [orden, setOrden] = React.useState("");
+
+  // CARRITO
+  const [carrito, setCarrito] = React.useState<ItemCarrito[]>([]);
+  const [drawerAbierto, setDrawerAbierto] = React.useState(false);
+
+  // ------------------------
+  // CARGA DE PRODUCTOS
+  // ------------------------
   React.useEffect(() => {
     let cancelado = false;
     (async () => {
@@ -37,13 +61,12 @@ export default function Page() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (!json?.ok) throw new Error(json?.error ?? "Respuesta inválida");
+
         if (!cancelado) {
           const disponibles = (json.data as ProductoApi[])
             .filter((producto) => (producto.estados ?? "").toLowerCase() === "disponible")
-            .map(({ estados, ...producto }) => ({
-              ...producto,
-              estado: estados,
-            }));
+            .map(({ estados, ...producto }) => ({ ...producto, estado: estados }));
+
           setProductos(disponibles);
         }
       } catch (e: any) {
@@ -57,121 +80,272 @@ export default function Page() {
     };
   }, []);
 
+  // ------------------------
+  // FILTRADO DE PRODUCTOS
+  // ------------------------
   const productosFiltrados = React.useMemo(() => {
+    let lista = [...productos];
+
+    // BÚSQUEDA
     const termino = busqueda.trim().toLowerCase();
-    if (!termino) return productos;
-    return productos.filter((producto) =>
-      producto.nombre.toLowerCase().includes(termino)
+    if (termino) {
+      lista = lista.filter((p) => p.nombre.toLowerCase().includes(termino));
+    }
+
+    // CATEGORÍA
+    if (categoriaFiltro) {
+      lista = lista.filter((p) => p.categoria?.toLowerCase() === categoriaFiltro.toLowerCase());
+    }
+
+    // MARCA
+    if (marcaFiltro) {
+      lista = lista.filter((p) => p.descripcion?.toLowerCase().includes(marcaFiltro.toLowerCase()));
+    }
+
+    // PRECIO
+    if (precioFiltro !== "0") {
+      const max = Number(precioFiltro);
+      lista = lista.filter((p) => p.precio <= max);
+    }
+
+    // ORDEN
+    if (orden === "asc") lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    if (orden === "desc") lista.sort((a, b) => b.nombre.localeCompare(a.nombre));
+
+    return lista;
+  }, [productos, busqueda, categoriaFiltro, marcaFiltro, precioFiltro, orden]);
+
+  // =========================================================
+  // MANEJO DE CARRITO
+  // =========================================================
+
+  const agregarAlCarrito = (producto: Producto) => {
+    setCarrito((prev) => {
+      const existente = prev.find((p) => p.id === producto.id);
+      if (existente) {
+        return prev.map((p) =>
+          p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
+        );
+      }
+      return [...prev, { id: producto.id, nombre: producto.nombre, precio: producto.precio, imagen: producto.imagen, cantidad: 1 }];
+    });
+  };
+
+  const aumentar = (id: number) => {
+    setCarrito((prev) => prev.map((p) => (p.id === id ? { ...p, cantidad: p.cantidad + 1 } : p)));
+  };
+
+  const disminuir = (id: number) => {
+    setCarrito((prev) =>
+      prev
+        .map((p) => (p.id === id ? { ...p, cantidad: Math.max(1, p.cantidad - 1) } : p))
+        .filter((p) => p.cantidad > 0)
     );
-  }, [productos, busqueda]);
+  };
+
+  const eliminar = (id: number) => {
+    setCarrito((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const vaciarCarrito = () => setCarrito([]);
+
+  const total = carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
+
+  // =========================================================
+  // UI
+  // =========================================================
 
   return (
-    <main className="min-h-screen bg-gray-100 py-10 px-4">
+    <main className="min-h-screen bg-gray-100 py-10 px-4 relative">
+      {/* ------------------------------------------------------ */}
+      {/* BOTÓN FLOTANTE DEL CARRITO */}
+      {/* ------------------------------------------------------ */}
+      <button
+        onClick={() => setDrawerAbierto(true)}
+        className="fixed top-6 right-6 bg-black text-white p-4 rounded-full shadow-lg hover:bg-gray-800 flex items-center gap-2 text-lg"
+      >
+        <FaShoppingCart />
+        <span>{carrito.length}</span>
+      </button>
+
       <h1 className="text-5xl font-bold text-center text-indigo-700 mb-8">
         Catálogo de Productos
       </h1>
 
+      {/* ------------------------------------------------------ */}
+      {/* BARRA DE BÚSQUEDA */}
+      {/* ------------------------------------------------------ */}
       <div className="mx-auto mb-8 max-w-xl">
-        <label className="sr-only" htmlFor="busqueda-productos">
-          Buscar productos por nombre
-        </label>
         <input
-          id="busqueda-productos"
           type="search"
           value={busqueda}
-          onChange={(event) => setBusqueda(event.target.value)}
+          onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Busca por nombre..."
-          className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm shadow-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+          className="w-full rounded-lg border px-4 py-2 shadow-sm"
         />
       </div>
 
+      {/* ------------------------------------------------------ */}
+      {/* FILTROS */}
+      {/* ------------------------------------------------------ */}
+      <div className="flex flex-wrap gap-4 justify-center mb-10">
+        <select className="p-2 border rounded" value={categoriaFiltro} onChange={(e) => setCategoriaFiltro(e.target.value)}>
+          <option value="">Categoría</option>
+          <option value="tecnologia">Tecnología</option>
+          <option value="ropa">Ropa</option>
+          <option value="hogar">Hogar</option>
+        </select>
+
+        <input
+          type="text"
+          placeholder="Marca"
+          className="p-2 border rounded"
+          value={marcaFiltro}
+          onChange={(e) => setMarcaFiltro(e.target.value)}
+        />
+
+        <select className="p-2 border rounded" value={precioFiltro} onChange={(e) => setPrecioFiltro(e.target.value)}>
+          <option value="0">Precio máximo</option>
+          <option value="50000">$50.000</option>
+          <option value="100000">$100.000</option>
+          <option value="300000">$300.000</option>
+        </select>
+
+        <select className="p-2 border rounded" value={orden} onChange={(e) => setOrden(e.target.value)}>
+          <option value="">Ordenar</option>
+          <option value="asc">A - Z</option>
+          <option value="desc">Z - A</option>
+        </select>
+      </div>
+
+      {/* ------------------------------------------------------ */}
+      {/* MENSAJES DE ESTADO */}
+      {/* ------------------------------------------------------ */}
       {cargando && (
         <div className="flex justify-center items-center text-purple-600 text-xl">
-          <FaSpinner className="animate-spin mr-2" />
-          Cargando productos...
+          <FaSpinner className="animate-spin mr-2" /> Cargando productos...
         </div>
       )}
 
-      {error && (
-        <div className="flex justify-center items-center text-red-600 text-lg">
-          <FaBan className="mr-2" />
-          {error}
+      {error && <div className="text-center text-red-600">{error}</div>}
+
+      {!cargando && !error && productosFiltrados.length === 0 && (
+        <div className="text-center text-gray-600 text-xl mt-10 border p-6 rounded-lg bg-white">
+          No se encontraron productos con los filtros aplicados.
         </div>
       )}
 
-      {!cargando && !error && productos.length === 0 && (
-        <div className="text-center text-gray-500">No hay productos disponibles.</div>
-      )}
-
+      {/* ------------------------------------------------------ */}
+      {/* GRID DE PRODUCTOS */}
+      {/* ------------------------------------------------------ */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {productosFiltrados.map((producto) => {
-          const esDisponible = (producto.estado ?? "").toLowerCase() === "disponible";
-          const stockAgotado = (producto.stock ?? 0) <= 0;
-          const estadoMostrado = stockAgotado ? "Agotado" : (producto.estado ?? "Desconocido");
-          const claseEstado = stockAgotado
-            ? "text-orange-500"
-            : esDisponible
-              ? "text-green-600"
-              : "text-red-500";
-          return (
-            <div
-              key={producto.id}
-              className="bg-white rounded-xl shadow-md overflow-hidden text-center hover:shadow-lg transition-shadow"
-            >
-              <div className="relative flex justify-center items-center p-4 bg-gray-50">
-                <div>
-                  {producto.imagen ? (
-                    <Image
-                      src={producto.imagen}
-                      alt={producto.nombre}
-                      width={300}
-                      height={300}
-                      className="h-80 object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">
-                      Sin imagen
-                    </div>
-                  )}
-                </div>
-                <div className="absolute top-0 right-0 p-4 text-black hover:text-slate-700 text-3xl">
-                  <FaShoppingCart />
-                </div>
-              </div>
+        {productosFiltrados.map((producto) => (
+          <div key={producto.id} className="bg-white rounded-xl shadow-md overflow-hidden text-center">
+            <div className="relative p-4 bg-gray-50 flex justify-center">
+              <Image
+                src={producto.imagen || "/no-image.png"}
+                alt={producto.nombre}
+                width={300}
+                height={300}
+                className="h-80 object-cover"
+              />
 
-
-              <div className="p-4">
-                <h2 className="text-xl font-semibold text-indigo-500">{producto.nombre}</h2>
-                <p className="text-sm text-gray-600">{producto.descripcion}</p>
-                <p className="mt-2 text-green-600 font-bold text-lg">
-                  ${producto.precio.toLocaleString("es-CO")}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Stock: {producto.stock} | Estado:{" "}
-                  <span
-                    className={`font-semibold ${claseEstado}`}
-                  >
-                    {estadoMostrado}
-                  </span>
-                </p>
-                <button
-                  onClick={() => router.push(`/productos/${producto.id}`)}
-                  className="mt-4 w-full bg-black text-white py-2 rounded hover:bg-sky-700 transition-colors flex items-center justify-center"
-                >
-                  <FaClipboardCheck className="mr-2" />
-                  Ver detalles
-                </button>
-              </div>
+              <button
+                onClick={() => agregarAlCarrito(producto)}
+                className="absolute top-2 right-2 bg-black text-white p-2 rounded-full"
+              >
+                <FaShoppingCart />
+              </button>
             </div>
-          );
-        })}
-        {!cargando && !error && productos.length > 0 && productosFiltrados.length === 0 && (
-          <div className="col-span-full rounded-lg border border-dashed border-gray-300 bg-white py-10 text-center text-gray-500">
-            No encontramos productos que coincidan con "{busqueda.trim()}".
+
+            <div className="p-4">
+              <h2 className="text-xl font-semibold text-indigo-500">{producto.nombre}</h2>
+              <p className="text-sm">{producto.descripcion}</p>
+
+              <p className="mt-2 text-green-600 font-bold text-lg">
+                ${producto.precio.toLocaleString("es-CO")}
+              </p>
+
+              <button
+                onClick={() => router.push(`/productos/${producto.id}`)}
+                className="mt-4 w-full bg-black text-white py-2 rounded"
+              >
+                <FaClipboardCheck className="inline mr-2" /> Ver Detalles
+              </button>
+            </div>
           </div>
+        ))}
+      </div>
+
+      {/* ========================================================= */}
+      {/* DRAWER DEL CARRITO */}
+      {/* ========================================================= */}
+
+      {drawerAbierto && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-40" onClick={() => setDrawerAbierto(false)}></div>
+      )}
+
+      <div
+        className={`fixed top-0 right-0 h-full w-80 bg-white shadow-xl p-6 z-50 transform transition-transform duration-300 ${
+          drawerAbierto ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <FaShoppingCart /> Carrito
+        </h2>
+
+        {carrito.length === 0 ? (
+          <p className="text-gray-500 text-center mt-10">Tu carrito está vacío</p>
+        ) : (
+          <>
+            <ul className="max-h-[60vh] overflow-y-auto pr-2 space-y-4">
+              {carrito.map((item) => (
+                <li key={item.id} className="flex items-center gap-3 border-b pb-3">
+                  <Image
+                    src={item.imagen || "/no-image.png"}
+                    alt={item.nombre}
+                    width={60}
+                    height={60}
+                    className="rounded"
+                  />
+
+                  <div className="flex-1">
+                    <p className="font-semibold">{item.nombre}</p>
+                    <p className="text-sm text-gray-600">
+                      ${item.precio.toLocaleString("es-CO")}
+                    </p>
+
+                    <div className="flex items-center gap-2 mt-2">
+                      <button className="p-1 bg-gray-200 rounded" onClick={() => disminuir(item.id)}>
+                        <FaMinus />
+                      </button>
+                      <span>{item.cantidad}</span>
+                      <button className="p-1 bg-gray-200 rounded" onClick={() => aumentar(item.id)}>
+                        <FaPlus />
+                      </button>
+                    </div>
+                  </div>
+
+                  <button className="text-red-600" onClick={() => eliminar(item.id)}>
+                    <FaTrash />
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-6">
+              <p className="text-xl font-bold">Total: ${total.toLocaleString("es-CO")}</p>
+
+              <button
+                onClick={vaciarCarrito}
+                className="mt-4 w-full bg-red-600 text-white py-2 rounded"
+              >
+                Vaciar Carrito
+              </button>
+            </div>
+          </>
         )}
       </div>
     </main>
   );
 }
-
