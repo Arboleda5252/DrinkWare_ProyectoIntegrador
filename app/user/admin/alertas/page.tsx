@@ -13,10 +13,22 @@ type Producto = {
   estados: string | null;
 };
 
+type PedidoProveedor = {
+  id: number;
+  producto_id: number;
+  cantidad: number;
+  estado: string;
+  descripcion: string | null;
+  creado_en: string;
+};
+
 export default function AdminAlertasPage() {
   const [productos, setProductos] = React.useState<Producto[]>([]);
   const [cargando, setCargando] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [pedidosProveedor, setPedidosProveedor] = React.useState<PedidoProveedor[]>([]);
+  const [errorPedidos, setErrorPedidos] = React.useState<string | null>(null);
+  const [cargandoPedidos, setCargandoPedidos] = React.useState(true);
 
   React.useEffect(() => {
     let cancelado = false;
@@ -33,6 +45,28 @@ export default function AdminAlertasPage() {
         if (!cancelado) setError(e?.message ?? "Error al cargar notificaciones");
       } finally {
         if (!cancelado) setCargando(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        setCargandoPedidos(true);
+        setErrorPedidos(null);
+        const res = await fetch("/api/productos/productosPedidos", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json?.ok) throw new Error(json?.error ?? "No fue posible obtener los pedidos del proveedor");
+        if (!cancelado) setPedidosProveedor(json.data as PedidoProveedor[]);
+      } catch (e: any) {
+        if (!cancelado) setErrorPedidos(e?.message ?? "Error al cargar las respuestas del proveedor");
+      } finally {
+        if (!cancelado) setCargandoPedidos(false);
       }
     })();
     return () => {
@@ -72,6 +106,16 @@ export default function AdminAlertasPage() {
     () =>
       productosDisponibles.filter((producto) => Number(producto.stock) > 0 && Number(producto.stock) <= 12),
     [productosDisponibles]
+  );
+
+  const pedidosAceptados = React.useMemo(
+    () => pedidosProveedor.filter((pedido) => (pedido.estado ?? "").toLowerCase() === "aceptado"),
+    [pedidosProveedor]
+  );
+
+  const pedidosRechazados = React.useMemo(
+    () => pedidosProveedor.filter((pedido) => (pedido.estado ?? "").toLowerCase() === "rechazado"),
+    [pedidosProveedor]
   );
 
   return (
@@ -123,6 +167,90 @@ export default function AdminAlertasPage() {
                       </div>
                       <span className="mt-2 inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold uppercase text-yellow-700 sm:mt-0">
                         Atención
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="rounded-2xl bg-white p-5 shadow">
+              <div className="mb-3 flex items-center gap-2 text-green-600">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-700">
+                  ✅
+                </span>
+                <h2 className="text-lg font-semibold">Pedidos aceptados por el proveedor</h2>
+              </div>
+              {cargandoPedidos ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <FaSpinner className="h-4 w-4 animate-spin" />
+                  <span>Cargando respuestas...</span>
+                </div>
+              ) : errorPedidos ? (
+                <p className="text-sm text-red-600">{errorPedidos}</p>
+              ) : pedidosAceptados.length === 0 ? (
+                <p className="text-sm text-gray-500">No hay pedidos aceptados recientemente.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {pedidosAceptados.map((pedido) => (
+                    <li
+                      key={pedido.id}
+                      className="flex flex-col rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-900 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-semibold">
+                          Pedido #{pedido.id} &middot; Cantidad solicitada: {pedido.cantidad}
+                        </p>
+                        <p className="text-xs text-green-800">
+                          {pedido.descripcion
+                            ? `Nota del proveedor: ${pedido.descripcion}`
+                            : "El proveedor aceptó la solicitud y aumentará el stock."}
+                        </p>
+                      </div>
+                      <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-bold uppercase text-green-700 sm:mt-0">
+                        Aceptado
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="rounded-2xl bg-white p-5 shadow">
+              <div className="mb-3 flex items-center gap-2 text-red-600">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-700">
+                  ❌
+                </span>
+                <h2 className="text-lg font-semibold">Pedidos rechazados por el proveedor</h2>
+              </div>
+              {cargandoPedidos ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <FaSpinner className="h-4 w-4 animate-spin" />
+                  <span>Cargando respuestas...</span>
+                </div>
+              ) : errorPedidos ? (
+                <p className="text-sm text-red-600">{errorPedidos}</p>
+              ) : pedidosRechazados.length === 0 ? (
+                <p className="text-sm text-gray-500">No hay pedidos rechazados.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {pedidosRechazados.map((pedido) => (
+                    <li
+                      key={pedido.id}
+                      className="flex flex-col rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-semibold">
+                          Pedido #{pedido.id} &middot; Cantidad solicitada: {pedido.cantidad}
+                        </p>
+                        <p className="text-xs text-red-800">
+                          {pedido.descripcion
+                            ? `Motivo: ${pedido.descripcion}`
+                            : "El proveedor no puede surtir este pedido por ahora."}
+                        </p>
+                      </div>
+                      <span className="mt-2 inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-bold uppercase text-red-700 sm:mt-0">
+                        Rechazado
                       </span>
                     </li>
                   ))}
