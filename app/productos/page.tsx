@@ -241,9 +241,9 @@ export default function Page() {
           onChange={(e) => setCategoriaFiltro(e.target.value)}
         >
           <option value="">Categoría</option>
-          <option value="tecnologia">Tecnología</option>
-          <option value="ropa">Ropa</option>
-          <option value="hogar">Hogar</option>
+          <option value="Precio">Precio</option>
+          <option value="Estado">Estado</option>
+          <option value="Orden alfabético">Orden alfabético</option>
         </select>
 
         <input
