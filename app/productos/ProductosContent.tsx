@@ -50,13 +50,13 @@ export default function Page() {
 
   // FILTROS
   const [categoriaFiltro, setCategoriaFiltro] = React.useState("");
-  const [marcaFiltro, setMarcaFiltro] = React.useState("");
-  const [precioFiltro, setPrecioFiltro] = React.useState("0");
+  const [precioMin, setPrecioMin] = React.useState("");
+  const [precioMax, setPrecioMax] = React.useState("");
   const [orden, setOrden] = React.useState("");
 
   // PAGINACION
   const [pagina, setPagina] = React.useState(1);
-  const productosPorPagina = 10;
+  const productosPorPagina = 8;
 
   // MODAL DETALLES
   const [modalProducto, setModalProducto] = React.useState<Producto | null>(null);
@@ -122,22 +122,32 @@ export default function Page() {
       );
     }
 
-    if (marcaFiltro) {
-      lista = lista.filter((p) =>
-        p.descripcion?.toLowerCase().includes(marcaFiltro.toLowerCase())
-      );
+    if (precioMin) {
+      const min = Number(precioMin);
+      if (!Number.isNaN(min)) lista = lista.filter((p) => p.precio >= min);
     }
 
-    if (precioFiltro !== "0") {
-      const max = Number(precioFiltro);
-      lista = lista.filter((p) => p.precio <= max);
+    if (precioMax) {
+      const max = Number(precioMax);
+      if (!Number.isNaN(max)) lista = lista.filter((p) => p.precio <= max);
     }
 
-    if (orden === "asc") lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
-    if (orden === "desc") lista.sort((a, b) => b.nombre.localeCompare(a.nombre));
+    if (orden === "nombre-asc") lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    if (orden === "nombre-desc") lista.sort((a, b) => b.nombre.localeCompare(a.nombre));
+    if (orden === "precio-asc") lista.sort((a, b) => a.precio - b.precio);
+    if (orden === "precio-desc") lista.sort((a, b) => b.precio - a.precio);
 
     return lista;
-  }, [productos, busqueda, categoriaFiltro, marcaFiltro, precioFiltro, orden]);
+  }, [productos, busqueda, categoriaFiltro, precioMin, precioMax, orden]);
+
+  const categorias = React.useMemo(() => {
+    const set = new Set<string>();
+    productos.forEach((p) => {
+      const cat = p.categoria?.trim();
+      if (cat) set.add(cat);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [productos]);
 
   // ------------------------
   // PAGINACIÓN
@@ -208,15 +218,17 @@ export default function Page() {
   // =========================================================
 
   return (
-    <main className="min-h-screen bg-gray-100 py-10 px-4 relative">
+    <main className="min-h-screen bg-gray-100 py-10 px-4">
       {/* BOTÓN DEL CARRITO */}
-      <button
-        onClick={() => setDrawerAbierto(true)}
-        className="fixed top-6 right-6 bg-black text-white p-4 rounded-full shadow-lg hover:bg-gray-800 flex items-center gap-2 text-lg"
-      >
-        <FaShoppingCart />
-        <span>{carrito.length}</span>
-      </button>
+      <div className="fixed bottom-6 right-6 z-50">
+        <button
+          onClick={() => setDrawerAbierto(true)}
+          className="bg-black text-white p-4 rounded-full shadow-lg hover:bg-gray-800 flex items-center gap-2 text-lg"
+        >
+          <FaShoppingCart />
+          <span>{carrito.length}</span>
+        </button>
+      </div>
 
       <h1 className="text-5xl font-bold text-center text-indigo-700 mb-8">
         Catálogo de Productos
@@ -234,36 +246,37 @@ export default function Page() {
       </div>
 
       {/* FILTROS */}
-      <div className="flex flex-wrap gap-4 justify-center mb-10">
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 mb-10">
         <select
           className="p-2 border rounded"
           value={categoriaFiltro}
           onChange={(e) => setCategoriaFiltro(e.target.value)}
         >
-          <option value="">Categoría</option>
-          <option value="Precio">Precio</option>
-          <option value="Estado">Estado</option>
-          <option value="Orden alfabético">Orden alfabético</option>
+          <option value="">Categoria</option>
+          {categorias.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
+          ))}
         </select>
 
         <input
-          type="text"
-          placeholder="Marca"
+          type="number"
+          min="0"
+          placeholder="Precio minimo"
           className="p-2 border rounded"
-          value={marcaFiltro}
-          onChange={(e) => setMarcaFiltro(e.target.value)}
+          value={precioMin}
+          onChange={(e) => setPrecioMin(e.target.value)}
         />
 
-        <select
+        <input
+          type="number"
+          min="0"
+          placeholder="Precio maximo"
           className="p-2 border rounded"
-          value={precioFiltro}
-          onChange={(e) => setPrecioFiltro(e.target.value)}
-        >
-          <option value="0">Precio máximo</option>
-          <option value="50000">$50.000</option>
-          <option value="100000">$100.000</option>
-          <option value="300000">$300.000</option>
-        </select>
+          value={precioMax}
+          onChange={(e) => setPrecioMax(e.target.value)}
+        />
 
         <select
           className="p-2 border rounded"
@@ -271,8 +284,10 @@ export default function Page() {
           onChange={(e) => setOrden(e.target.value)}
         >
           <option value="">Ordenar</option>
-          <option value="asc">A - Z</option>
-          <option value="desc">Z - A</option>
+          <option value="nombre-asc">A - Z</option>
+          <option value="nombre-desc">Z - A</option>
+          <option value="precio-asc">Precio menor a mayor</option>
+          <option value="precio-desc">Precio mayor a menor</option>
         </select>
       </div>
 
@@ -296,15 +311,15 @@ export default function Page() {
         {productosPagina.map((producto) => (
           <div
             key={producto.id}
-            className="bg-white rounded-xl shadow-md overflow-hidden text-center"
+            className="bg-white rounded-xl shadow-md overflow-hidden text-center flex flex-col h-full"
           >
-            <div className="relative p-4 bg-gray-50 flex justify-center">
+            <div className="relative bg-gray-50 h-64 flex items-center justify-center">
               <Image
                 src={producto.imagen || "/no-image.png"}
                 alt={producto.nombre}
-                width={300}
-                height={300}
-                className="h-80 object-cover"
+                width={220}
+                height={220}
+                className="h-56 w-auto object-contain"
               />
 
               <button
@@ -315,18 +330,18 @@ export default function Page() {
               </button>
             </div>
 
-            <div className="p-4">
-              <h2 className="text-xl font-semibold text-indigo-500">
+            <div className="p-4 flex flex-col flex-1 gap-3">
+              <h2 className="text-xl font-semibold text-gray-800">
                 {producto.nombre}
               </h2>
 
-              <p className="mt-2 text-green-600 font-bold text-lg">
+              <p className="mt-1 text-lg font-semibold text-slate-700">
                 ${producto.precio.toLocaleString("es-CO")}
               </p>
 
               <button
                 onClick={() => setModalProducto(producto)}
-                className="mt-4 w-full bg-black text-white py-2 rounded"
+                className="mt-auto w-full bg-black text-white py-2 rounded transition-colors hover:bg-sky-500"
               >
                 <FaClipboardCheck className="inline mr-2" /> Ver Detalles
               </button>
