@@ -452,7 +452,7 @@ export default function Page() {
                       htmlFor="direccion"
                       className="text-sm font-semibold text-slate-700"
                     >
-                      Direccion
+                      Dirección
                     </label>
                     <input
                       id="direccion"
@@ -479,14 +479,14 @@ export default function Page() {
                     name="password"
                     type="password"
                     autoComplete="new-password"
-                    placeholder="Ingresa una nueva password"
+                    placeholder="Ingresa una nueva contraseña"
                     value={formData.password}
                     onChange={handleInputChange}
                     disabled={isSaving}
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                   <p className="text-xs text-slate-500">
-                    Deja este campo vacio si no deseas cambiar la password.
+                    Deja este campo vacio si no deseas cambiar la contraseña
                   </p>
                 </div>
 

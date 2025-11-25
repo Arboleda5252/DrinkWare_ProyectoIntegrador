@@ -319,41 +319,47 @@ export default function Page() {
     [actualizarStockEnEstado]
   );
 
-  const agregarAlCarrito = async (producto: Producto, cantidad = 1) => {
+  const [mensajeCarrito, setMensajeCarrito] = React.useState<string | null>(null);
+
+  const agregarAlCarrito = async (producto: Producto, cantidad = 1): Promise<boolean> => {
+    setMensajeCarrito(null);
     const cantidadAgregada = Math.max(1, Number(cantidad) || 1);
     const stockDisponible = productos.find((p) => p.id === producto.id)?.stock ?? producto.stock;
     if (cantidadAgregada > stockDisponible) {
+      setMensajeCarrito("Producto no disponible en este momento. Estamos trabajando para tenerlo de nuevo pronto.");
       console.error("[Productos] stock insuficiente para agregar al carrito");
-      return;
+      return false;
     }
 
     const existente = carrito.find((p) => p.id === producto.id);
+    let agregado = false;
 
     if (existente) {
       const nuevaCantidad = existente.cantidad + cantidadAgregada;
       if (!existente.detalleId) {
         console.warn("[Detallepedido] no se encontro detalleId para actualizar el producto");
-        return;
+        return false;
       }
       const actualizado = await actualizarDetallePedido(existente.detalleId, nuevaCantidad, producto.precio);
-      if (!actualizado) return;
+      if (!actualizado) return false;
       const stockAj = await ajustarStockProducto(producto.id, cantidadAgregada, "disminuir");
       if (stockAj === null) {
         await actualizarDetallePedido(existente.detalleId, existente.cantidad, producto.precio);
-        return;
+        return false;
       }
       setCarrito((prev) =>
         prev.map((p) => (p.id === producto.id ? { ...p, cantidad: nuevaCantidad } : p))
       );
+      agregado = true;
     } else {
       const detalle = await registrarDetallePedido(producto, cantidadAgregada);
       if (!detalle?.id) {
-        return;
+        return false;
       }
       const stockAj = await ajustarStockProducto(producto.id, cantidadAgregada, "disminuir");
       if (stockAj === null) {
         await eliminarDetallePedido(Number(detalle.id));
-        return;
+        return false;
       }
       const detalleId = Number(detalle.id);
       setCarrito((prev) => [
@@ -367,12 +373,14 @@ export default function Page() {
           cantidad: cantidadAgregada,
         },
       ]);
+      agregado = true;
     }
 
     setCantidadesSeleccionadas((prev) => ({
       ...prev,
       [producto.id]: 1,
     }));
+    return agregado;
   };
 
   const aumentar = (_id: number) => {};
@@ -556,23 +564,28 @@ export default function Page() {
               </div>
 
               <div className="p-4 flex flex-col flex-1 gap-3 text-left">
-                <h2 className="text-xl font-semibold text-gray-800 text-center">
-                  {producto.nombre}
-                </h2>
-
-                <p className="text-lg font-semibold text-slate-700 text-center">
-                  Precio unitario: ${producto.precio.toLocaleString("es-CO")}
-                </p>
-                <p className="text-sm text-gray-600 text-center">
-                  Stock disponible: {stockDisponible}
-                </p>
-                {sinStock && (
-                  <p className="text-sm font-semibold text-red-600 text-center">
-                    No disponible por falta de stock
-                  </p>
-                )}
-
                 <div className="flex flex-col gap-2">
+                  <h2 className="text-xl font-semibold text-gray-800 text-center min-h-[3.5rem] flex items-center justify-center">
+                    {producto.nombre}
+                  </h2>
+
+                  <div className="text-center space-y-1 min-h-[4.5rem] flex flex-col justify-center">
+                    <p className="text-lg font-semibold text-slate-700">
+                      Precio unitario: ${producto.precio.toLocaleString("es-CO")}
+                    </p>
+                    {sinStock ? (
+                      <p className="text-sm font-semibold text-red-600">
+                        Este producto no está disponible en este momento.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-green-800">
+                        Tenemos {stockDisponible} unidades listas para que lo compres.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-auto flex flex-col gap-2">
                   <label className="text-sm font-medium text-gray-600">
                     Cantidad
                     <input
@@ -600,14 +613,13 @@ export default function Page() {
                   <p className="text-sm text-gray-700">
                     Subtotal: ${subtotalActual.toLocaleString("es-CO")}
                   </p>
+                  <button
+                    onClick={() => setModalProducto(producto)}
+                    className="w-full bg-black text-white py-2 rounded transition-colors hover:bg-sky-500"
+                  >
+                    <FaClipboardCheck className="inline mr-2" /> Ver Detalles
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => setModalProducto(producto)}
-                  className="mt-auto w-full bg-black text-white py-2 rounded transition-colors hover:bg-sky-500"
-                >
-                  <FaClipboardCheck className="inline mr-2" /> Ver Detalles
-                </button>
               </div>
             </div>
           );
@@ -691,10 +703,12 @@ export default function Page() {
               </p>
 
               <button
-                onClick={() => {
+                onClick={async () => {
                   const cantidadModal = cantidadesSeleccionadas[modalProducto.id] ?? 1;
-                  void agregarAlCarrito(modalProducto, cantidadModal);
-                  setModalProducto(null);
+                  const agregado = await agregarAlCarrito(modalProducto, cantidadModal);
+                  if (agregado) {
+                    setModalProducto(null);
+                  }
                 }}
                 className="mt-4 bg-black text-white px-6 py-2 rounded-lg"
               >
@@ -725,11 +739,23 @@ export default function Page() {
         </h2>
 
         {carrito.length === 0 ? (
-          <p className="text-gray-500 text-center mt-10">
-            Tu carrito está vacío
-          </p>
+          <div className="text-center mt-10 space-y-2">
+            <p className="text-gray-500">
+              Tu carrito está vacío
+            </p>
+            {mensajeCarrito && (
+              <p className="text-sm text-red-600 px-3">
+                {mensajeCarrito}
+              </p>
+            )}
+          </div>
         ) : (
           <>
+            {mensajeCarrito && (
+              <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                {mensajeCarrito}
+              </div>
+            )}
             <ul className="max-h-[60vh] overflow-y-auto pr-2 space-y-4">
               {carrito.map((item) => (
                 <li
