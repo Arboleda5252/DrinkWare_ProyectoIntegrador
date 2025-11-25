@@ -14,13 +14,6 @@ import {
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
-const FALLBACK_PEDIDO_ID = 1;
-const PEDIDO_CARRITO_ID = (() => {
-  const raw = process.env.NEXT_PUBLIC_PEDIDO_ID;
-  const parsed = raw !== undefined ? Number(raw) : Number.NaN;
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : FALLBACK_PEDIDO_ID;
-})();
-
 type Producto = {
   id: number;
   nombre: string;
@@ -71,6 +64,9 @@ export default function Page() {
   // CARRITO
   const [carrito, setCarrito] = React.useState<ItemCarrito[]>([]);
   const [drawerAbierto, setDrawerAbierto] = React.useState(false);
+  const [cantidadesSeleccionadas, setCantidadesSeleccionadas] = React.useState<
+    Record<number, number>
+  >({});
 
   // ------------------------
   // CARGA DE PRODUCTOS
@@ -179,10 +175,10 @@ export default function Page() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            pedidoId: PEDIDO_CARRITO_ID,
             productoId: producto.id,
             cantidad,
             precioProducto: producto.precio,
+            subtotal: cantidad * producto.precio,
           }),
         });
 
@@ -198,14 +194,13 @@ export default function Page() {
     []
   );
 
-  const agregarAlCarrito = (producto: Producto) => {
-    let cantidadRegistrada = 1;
+  const agregarAlCarrito = (producto: Producto, cantidad = 1) => {
+    const cantidadAgregada = Math.max(1, Number(cantidad) || 1);
     setCarrito((prev) => {
       const existente = prev.find((p) => p.id === producto.id);
-      cantidadRegistrada = existente ? existente.cantidad + 1 : 1;
       if (existente) {
         return prev.map((p) =>
-          p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
+          p.id === producto.id ? { ...p, cantidad: p.cantidad + cantidadAgregada } : p
         );
       }
       return [
@@ -215,30 +210,20 @@ export default function Page() {
           nombre: producto.nombre,
           precio: producto.precio,
           imagen: producto.imagen,
-          cantidad: 1,
+          cantidad: cantidadAgregada,
         },
       ];
     });
-    void registrarDetallePedido(producto, cantidadRegistrada);
+    void registrarDetallePedido(producto, cantidadAgregada);
+    setCantidadesSeleccionadas((prev) => ({
+      ...prev,
+      [producto.id]: 1,
+    }));
   };
 
-  const aumentar = (id: number) => {
-    setCarrito((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, cantidad: p.cantidad + 1 } : p
-      )
-    );
-  };
+  const aumentar = (_id: number) => {};
 
-  const disminuir = (id: number) => {
-    setCarrito((prev) =>
-      prev
-        .map((p) =>
-          p.id === id ? { ...p, cantidad: Math.max(1, p.cantidad - 1) } : p
-        )
-        .filter((p) => p.cantidad > 0)
-    );
-  };
+  const disminuir = (_id: number) => {};
 
   const eliminar = (id: number) => {
     setCarrito((prev) => prev.filter((p) => p.id !== id));
@@ -346,46 +331,72 @@ export default function Page() {
 
       {/* GRID DE PRODUCTOS (10 por página) */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {productosPagina.map((producto) => (
-          <div
-            key={producto.id}
-            className="bg-white rounded-xl shadow-md overflow-hidden text-center flex flex-col h-full"
-          >
-            <div className="relative bg-gray-50 h-64 flex items-center justify-center">
-              <Image
-                src={producto.imagen || "/no-image.png"}
-                alt={producto.nombre}
-                width={220}
-                height={220}
-                className="h-56 w-auto object-contain"
-              />
+        {productosPagina.map((producto) => {
+          const cantidadActual = cantidadesSeleccionadas[producto.id] ?? 1;
+          const subtotalActual = cantidadActual * producto.precio;
+          return (
+            <div
+              key={producto.id}
+              className="bg-white rounded-xl shadow-md overflow-hidden text-center flex flex-col h-full"
+            >
+              <div className="relative bg-gray-50 h-64 flex items-center justify-center">
+                <Image
+                  src={producto.imagen || "/no-image.png"}
+                  alt={producto.nombre}
+                  width={220}
+                  height={220}
+                  className="h-56 w-auto object-contain"
+                />
 
-              <button
-                onClick={() => agregarAlCarrito(producto)}
-                className="absolute top-2 right-2 bg-black text-white p-2 rounded-full"
-              >
-                <FaShoppingCart />
-              </button>
+                <button
+                  onClick={() => agregarAlCarrito(producto, cantidadActual)}
+                  className="absolute top-2 right-2 bg-black text-white p-2 rounded-full"
+                >
+                  <FaShoppingCart />
+                </button>
+              </div>
+
+              <div className="p-4 flex flex-col flex-1 gap-3 text-left">
+                <h2 className="text-xl font-semibold text-gray-800 text-center">
+                  {producto.nombre}
+                </h2>
+
+                <p className="text-lg font-semibold text-slate-700 text-center">
+                  Precio unitario: ${producto.precio.toLocaleString("es-CO")}
+                </p>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-gray-600">
+                    Cantidad
+                    <input
+                      type="number"
+                      min="1"
+                      value={cantidadActual}
+                      onChange={(e) => {
+                        const valor = Math.max(1, Number(e.target.value) || 1);
+                        setCantidadesSeleccionadas((prev) => ({
+                          ...prev,
+                          [producto.id]: valor,
+                        }));
+                      }}
+                      className="mt-1 w-full rounded border px-3 py-1"
+                    />
+                  </label>
+                  <p className="text-sm text-gray-700">
+                    Subtotal: ${subtotalActual.toLocaleString("es-CO")}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setModalProducto(producto)}
+                  className="mt-auto w-full bg-black text-white py-2 rounded transition-colors hover:bg-sky-500"
+                >
+                  <FaClipboardCheck className="inline mr-2" /> Ver Detalles
+                </button>
+              </div>
             </div>
-
-            <div className="p-4 flex flex-col flex-1 gap-3">
-              <h2 className="text-xl font-semibold text-gray-800">
-                {producto.nombre}
-              </h2>
-
-              <p className="mt-1 text-lg font-semibold text-slate-700">
-                ${producto.precio.toLocaleString("es-CO")}
-              </p>
-
-              <button
-                onClick={() => setModalProducto(producto)}
-                className="mt-auto w-full bg-black text-white py-2 rounded transition-colors hover:bg-sky-500"
-              >
-                <FaClipboardCheck className="inline mr-2" /> Ver Detalles
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* PAGINACIÓN */}
@@ -466,7 +477,8 @@ export default function Page() {
 
               <button
                 onClick={() => {
-                  agregarAlCarrito(modalProducto);
+                  const cantidadModal = cantidadesSeleccionadas[modalProducto.id] ?? 1;
+                  agregarAlCarrito(modalProducto, cantidadModal);
                   setModalProducto(null);
                 }}
                 className="mt-4 bg-black text-white px-6 py-2 rounded-lg"
@@ -524,19 +536,9 @@ export default function Page() {
                     </p>
 
                     <div className="flex items-center gap-2 mt-2">
-                      <button
-                        className="p-1 bg-gray-200 rounded"
-                        onClick={() => disminuir(item.id)}
-                      >
-                        <FaMinus />
-                      </button>
-                      <span>{item.cantidad}</span>
-                      <button
-                        className="p-1 bg-gray-200 rounded"
-                        onClick={() => aumentar(item.id)}
-                      >
-                        <FaPlus />
-                      </button>
+                      <span className="px-3 py-1 rounded bg-gray-100">
+                        Cantidad: {item.cantidad}
+                      </span>
                     </div>
                   </div>
 

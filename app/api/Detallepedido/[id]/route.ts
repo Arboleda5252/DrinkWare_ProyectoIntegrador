@@ -7,21 +7,33 @@ type Params = { params: { id: string } };
 
 type DetallePedidoRow = {
   id: number;
-  pedidoId: number;
   productoId: number;
   cantidad: number;
   precioProducto: number;
   subtotal: number;
+  idUsuario: number | null;
+  idVendedor: number | null;
+  fechaPago: string | null;
+  estado: string | null;
+  nombreCliente: string | null;
+  direccionCliente: string | null;
+  telefonoCliente: string | null;
 };
 
 const baseSelect = `
   SELECT
     iddetallepedido AS id,
-    id_pedido AS "pedidoId",
     id_producto AS "productoId",
     cantidad,
     precioproducto AS "precioProducto",
-    subtotal
+    subtotal,
+    idusuario AS "idUsuario",
+    idvendedor AS "idVendedor",
+    fechapago AS "fechaPago",
+    estado,
+    nombre_cliente AS "nombreCliente",
+    direccion_cliente AS "direccionCliente",
+    telefono_cliente AS "telefonoCliente"
   FROM public.detallepedido
 `;
 
@@ -29,11 +41,17 @@ const selectById = `${baseSelect} WHERE iddetallepedido = $1;`;
 
 const toDto = (row: DetallePedidoRow) => ({
   id: row.id,
-  pedidoId: row.pedidoId,
   productoId: row.productoId,
   cantidad: row.cantidad,
   precioProducto: Number(row.precioProducto),
   subtotal: Number(row.subtotal),
+  idUsuario: row.idUsuario === null ? null : Number(row.idUsuario),
+  idVendedor: row.idVendedor === null ? null : Number(row.idVendedor),
+  fechaPago: row.fechaPago,
+  estado: row.estado,
+  nombreCliente: row.nombreCliente,
+  direccionCliente: row.direccionCliente,
+  telefonoCliente: row.telefonoCliente,
 });
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -79,18 +97,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
     values.push(value);
   };
 
-  const pedidoInput = body?.pedidoId ?? body?.id_pedido ?? body?.idPedido ?? body?.idpedido;
-  if (pedidoInput !== undefined) {
-    const pedidoId = Number(pedidoInput);
-    if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
-      return NextResponse.json(
-        { ok: false, error: "id_pedido debe ser un entero positivo" },
-        { status: 400 }
-      );
-    }
-    addUpdate("id_pedido", pedidoId);
-  }
-
   const productoInput = body?.productoId ?? body?.id_producto ?? body?.idProducto ?? body?.idproducto;
   if (productoInput !== undefined) {
     const productoId = Number(productoInput);
@@ -103,7 +109,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
     addUpdate("id_producto", productoId);
   }
 
-  let cantidadValor: number | undefined;
   if (body?.cantidad !== undefined) {
     const cantidad = Number(body.cantidad);
     if (!Number.isInteger(cantidad) || cantidad <= 0) {
@@ -112,11 +117,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
         { status: 400 }
       );
     }
-    cantidadValor = cantidad;
     addUpdate("cantidad", cantidad);
   }
 
-  let precioValor: number | undefined;
   const precioInput = body?.precioProducto ?? body?.precioproducto ?? body?.precio_producto ?? body?.precio;
   if (precioInput !== undefined) {
     const precio = Number(precioInput);
@@ -126,11 +129,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
         { status: 400 }
       );
     }
-    precioValor = precio;
     addUpdate("precioproducto", precio);
   }
 
-  let subtotalValor: number | undefined;
   if (body?.subtotal !== undefined) {
     const subtotal = Number(body.subtotal);
     if (!Number.isFinite(subtotal) || subtotal < 0) {
@@ -139,13 +140,118 @@ export async function PUT(req: NextRequest, { params }: Params) {
         { status: 400 }
       );
     }
-    subtotalValor = subtotal;
-  } else if (cantidadValor !== undefined && precioValor !== undefined) {
-    subtotalValor = cantidadValor * precioValor;
+    addUpdate("subtotal", subtotal);
   }
 
-  if (subtotalValor !== undefined) {
-    addUpdate("subtotal", subtotalValor);
+  const usuarioInput =
+    body?.idUsuario ?? body?.idusuario ?? body?.id_usuario ?? body?.usuarioId ?? body?.usuario_id;
+  if (usuarioInput !== undefined) {
+    if (usuarioInput === null) {
+      addUpdate("idusuario", null);
+    } else {
+      const idUsuario = Number(usuarioInput);
+      if (!Number.isInteger(idUsuario) || idUsuario <= 0) {
+        return NextResponse.json(
+          { ok: false, error: "idusuario debe ser un entero positivo o null" },
+          { status: 400 }
+        );
+      }
+      addUpdate("idusuario", idUsuario);
+    }
+  }
+
+  const vendedorInput =
+    body?.idVendedor ?? body?.idvendedor ?? body?.id_vendedor ?? body?.vendedorId ?? body?.vendedor_id;
+  if (vendedorInput !== undefined) {
+    if (vendedorInput === null) {
+      addUpdate("idvendedor", null);
+    } else {
+      const idVendedor = Number(vendedorInput);
+      if (!Number.isInteger(idVendedor) || idVendedor <= 0) {
+        return NextResponse.json(
+          { ok: false, error: "idvendedor debe ser un entero positivo o null" },
+          { status: 400 }
+        );
+      }
+      addUpdate("idvendedor", idVendedor);
+    }
+  }
+
+  const fechaPagoInput = body?.fechaPago ?? body?.fechapago ?? body?.fecha_pago;
+  if (fechaPagoInput !== undefined) {
+    if (fechaPagoInput === null) {
+      addUpdate("fechapago", null);
+    } else if (typeof fechaPagoInput === "string" && fechaPagoInput.trim().length > 0) {
+      const timestamp = Date.parse(fechaPagoInput);
+      if (Number.isNaN(timestamp)) {
+        return NextResponse.json(
+          { ok: false, error: "fechapago debe ser una fecha valida (YYYY-MM-DD)" },
+          { status: 400 }
+        );
+      }
+      addUpdate("fechapago", fechaPagoInput);
+    } else {
+      return NextResponse.json(
+        { ok: false, error: "fechapago debe ser una fecha valida o null" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const estadoInput = body?.estado;
+  if (estadoInput !== undefined) {
+    if (estadoInput === null) {
+      addUpdate("estado", null);
+    } else if (typeof estadoInput === "string" && estadoInput.trim().length > 0) {
+      addUpdate("estado", estadoInput.trim());
+    } else {
+      return NextResponse.json(
+        { ok: false, error: "estado debe ser un texto no vacio o null" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const nombreInput = body?.nombreCliente ?? body?.nombre_cliente;
+  if (nombreInput !== undefined) {
+    if (nombreInput === null) {
+      addUpdate("nombre_cliente", null);
+    } else if (typeof nombreInput === "string" && nombreInput.trim().length > 0) {
+      addUpdate("nombre_cliente", nombreInput.trim());
+    } else {
+      return NextResponse.json(
+        { ok: false, error: "nombre_cliente debe ser un texto no vacio o null" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const direccionInput = body?.direccionCliente ?? body?.direccion_cliente;
+  if (direccionInput !== undefined) {
+    if (direccionInput === null) {
+      addUpdate("direccion_cliente", null);
+    } else if (typeof direccionInput === "string" && direccionInput.trim().length > 0) {
+      addUpdate("direccion_cliente", direccionInput.trim());
+    } else {
+      return NextResponse.json(
+        { ok: false, error: "direccion_cliente debe ser un texto no vacio o null" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const telefonoInput = body?.telefonoCliente ?? body?.telefono_cliente;
+  if (telefonoInput !== undefined) {
+    if (telefonoInput === null) {
+      addUpdate("telefono_cliente", null);
+    } else if (typeof telefonoInput === "string" && telefonoInput.trim().length > 0) {
+      addUpdate("telefono_cliente", telefonoInput.trim());
+    } else {
+      return NextResponse.json(
+        { ok: false, error: "telefono_cliente debe ser un texto no vacio o null" },
+        { status: 400 }
+      );
+    }
   }
 
   if (updates.length === 0) {
@@ -165,11 +271,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
         WHERE iddetallepedido = $${index}
         RETURNING
           iddetallepedido AS id,
-          id_pedido AS "pedidoId",
           id_producto AS "productoId",
           cantidad,
           precioproducto AS "precioProducto",
-          subtotal;
+          subtotal,
+          idusuario AS "idUsuario",
+          idvendedor AS "idVendedor",
+          fechapago AS "fechaPago",
+          estado,
+          nombre_cliente AS "nombreCliente",
+          direccion_cliente AS "direccionCliente",
+          telefono_cliente AS "telefonoCliente";
       `,
       values
     );
