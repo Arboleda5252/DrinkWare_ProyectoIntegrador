@@ -14,6 +14,13 @@ import {
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
+const FALLBACK_PEDIDO_ID = 1;
+const PEDIDO_CARRITO_ID = (() => {
+  const raw = process.env.NEXT_PUBLIC_PEDIDO_ID;
+  const parsed = raw !== undefined ? Number(raw) : Number.NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : FALLBACK_PEDIDO_ID;
+})();
+
 type Producto = {
   id: number;
   nombre: string;
@@ -163,9 +170,39 @@ export default function Page() {
   // MANEJO DE CARRITO
   // =========================================================
 
+  const registrarDetallePedido = React.useCallback(
+    async (producto: Producto, cantidad: number) => {
+      try {
+        const response = await fetch("/api/Detallepedido", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            pedidoId: PEDIDO_CARRITO_ID,
+            productoId: producto.id,
+            cantidad,
+            precioProducto: producto.precio,
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const mensaje = payload?.error ?? response.statusText;
+          console.error("[Detallepedido] no se pudo registrar el producto:", mensaje);
+        }
+      } catch (error) {
+        console.error("[Detallepedido] error al registrar el producto", error);
+      }
+    },
+    []
+  );
+
   const agregarAlCarrito = (producto: Producto) => {
+    let cantidadRegistrada = 1;
     setCarrito((prev) => {
       const existente = prev.find((p) => p.id === producto.id);
+      cantidadRegistrada = existente ? existente.cantidad + 1 : 1;
       if (existente) {
         return prev.map((p) =>
           p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
@@ -182,6 +219,7 @@ export default function Page() {
         },
       ];
     });
+    void registrarDetallePedido(producto, cantidadRegistrada);
   };
 
   const aumentar = (id: number) => {
