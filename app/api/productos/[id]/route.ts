@@ -93,6 +93,50 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return productoExisteCache;
     };
 
+    if (accion === "ajustar_stock") {
+      const cantidad = Number(body?.cantidad);
+      if (!Number.isInteger(cantidad) || cantidad <= 0) {
+        return NextResponse.json(
+          { ok: false, error: "La cantidad debe ser un entero positivo" },
+          { status: 400 }
+        );
+      }
+
+      const operacion =
+        typeof body?.operacion === "string" ? body.operacion.toLowerCase() : "disminuir";
+      const factor = operacion === "incrementar" ? 1 : operacion === "disminuir" ? -1 : null;
+      if (factor === null) {
+        return NextResponse.json(
+          { ok: false, error: "Operacion invalida. Use 'incrementar' o 'disminuir'" },
+          { status: 400 }
+        );
+      }
+
+      const delta = factor * cantidad;
+      const { rows } = await sql<{ stock: number }>(
+        `
+          UPDATE public.producto
+          SET stock = stock + $2
+          WHERE idproducto = $1
+            AND (stock + $2) >= 0
+          RETURNING stock::int AS stock;
+        `,
+        [id, delta]
+      );
+
+      if (!rows[0]) {
+        if (!(await asegurarProductoExiste())) {
+          return NextResponse.json({ ok: false, error: "Producto no encontrado" }, { status: 404 });
+        }
+        return NextResponse.json(
+          { ok: false, error: "Stock insuficiente para realizar el ajuste" },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, data: { stock: rows[0].stock } });
+    }
+
     if (accion === "solicitar_pedido") {
       const cantidad = Number(body?.cantidad);
       if (!Number.isInteger(cantidad) || cantidad <= 0) {

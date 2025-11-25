@@ -30,6 +30,7 @@ type ProductoApi = Omit<Producto, "estado"> & {
 };
 
 type ItemCarrito = {
+  detalleId: number;
   id: number;
   nombre: string;
   precio: number;
@@ -67,6 +68,13 @@ export default function Page() {
   const [cantidadesSeleccionadas, setCantidadesSeleccionadas] = React.useState<
     Record<number, number>
   >({});
+  const [usuarioActivo, setUsuarioActivo] = React.useState<{ id: number; nombre: string } | null>(null);
+  const actualizarStockEnEstado = React.useCallback((productoId: number, nuevoStock: number) => {
+    setProductos((prev) =>
+      prev.map((producto) => (producto.id === productoId ? { ...producto, stock: nuevoStock } : producto))
+    );
+    setModalProducto((prev) => (prev?.id === productoId ? { ...prev, stock: nuevoStock } : prev));
+  }, []);
 
   // ------------------------
   // CARGA DE PRODUCTOS
@@ -98,6 +106,31 @@ export default function Page() {
         if (!cancelado) setError(e?.message ?? "Error al cargar productos");
       } finally {
         if (!cancelado) setCargando(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/usuarios", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json?.ok) throw new Error(json?.error ?? "Respuesta invalida");
+        const usuarios = Array.isArray(json.data) ? json.data : [];
+        const activo = usuarios.find((u: any) => u?.activo === true);
+        if (!cancelado) {
+          setUsuarioActivo(activo ?? null);
+        }
+      } catch (e) {
+        if (!cancelado) {
+          console.error("[Usuarios] no se pudo determinar el usuario activo", e);
+          setUsuarioActivo(null);
+        }
       }
     })();
     return () => {
@@ -168,53 +201,174 @@ export default function Page() {
 
   const registrarDetallePedido = React.useCallback(
     async (producto: Producto, cantidad: number) => {
+      const payload: Record<string, unknown> = {
+        productoId: producto.id,
+        cantidad,
+        precioProducto: producto.precio,
+        subtotal: cantidad * producto.precio,
+      };
+
+      if (usuarioActivo?.id) {
+        payload.idUsuario = usuarioActivo.id;
+      } else {
+        console.warn("[Usuarios] no hay un usuario activo, se envia sin idUsuario");
+      }
+
       try {
         const response = await fetch("/api/Detallepedido", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            productoId: producto.id,
-            cantidad,
-            precioProducto: producto.precio,
-            subtotal: cantidad * producto.precio,
-          }),
+          body: JSON.stringify(payload),
         });
 
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          const mensaje = payload?.error ?? response.statusText;
+        const payloadResp = await response.json().catch(() => null);
+        if (!response.ok || !payloadResp?.ok) {
+          const mensaje = payloadResp?.error ?? response.statusText;
           console.error("[Detallepedido] no se pudo registrar el producto:", mensaje);
+          return null;
         }
+        return payloadResp.data ?? null;
       } catch (error) {
         console.error("[Detallepedido] error al registrar el producto", error);
+        return null;
+      }
+    },
+    [usuarioActivo]
+  );
+
+  const actualizarDetallePedido = React.useCallback(
+    async (detalleId: number, cantidad: number, precio: number) => {
+      try {
+        const response = await fetch(`/api/Detallepedido/${detalleId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cantidad,
+            precioProducto: precio,
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok) {
+          const mensaje = payload?.error ?? response.statusText;
+          console.error("[Detallepedido] no se pudo actualizar:", mensaje);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error("[Detallepedido] error al actualizar el producto", error);
+        return false;
       }
     },
     []
   );
 
-  const agregarAlCarrito = (producto: Producto, cantidad = 1) => {
-    const cantidadAgregada = Math.max(1, Number(cantidad) || 1);
-    setCarrito((prev) => {
-      const existente = prev.find((p) => p.id === producto.id);
-      if (existente) {
-        return prev.map((p) =>
-          p.id === producto.id ? { ...p, cantidad: p.cantidad + cantidadAgregada } : p
-        );
+  const eliminarDetallePedido = React.useCallback(async (detalleId: number) => {
+    try {
+      const response = await fetch(`/api/Detallepedido/${detalleId}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) {
+        const mensaje = payload?.error ?? response.statusText;
+        console.error("[Detallepedido] no se pudo eliminar:", mensaje);
+        return false;
       }
-      return [
+      return true;
+    } catch (error) {
+      console.error("[Detallepedido] error al eliminar el producto", error);
+      return false;
+    }
+  }, []);
+
+  const ajustarStockProducto = React.useCallback(
+    async (productoId: number, cantidad: number, operacion: "incrementar" | "disminuir") => {
+      try {
+        const response = await fetch(`/api/productos/${productoId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            accion: "ajustar_stock",
+            cantidad,
+            operacion,
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok) {
+          const mensaje = payload?.error ?? response.statusText;
+          console.error("[Productos] no se pudo ajustar el stock:", mensaje);
+          return null;
+        }
+        const nuevoStock = Number(payload.data?.stock);
+        if (!Number.isInteger(nuevoStock)) {
+          console.error("[Productos] respuesta de stock invalida");
+          return null;
+        }
+        actualizarStockEnEstado(productoId, nuevoStock);
+        return nuevoStock;
+      } catch (error) {
+        console.error("[Productos] error al ajustar el stock", error);
+        return null;
+      }
+    },
+    [actualizarStockEnEstado]
+  );
+
+  const agregarAlCarrito = async (producto: Producto, cantidad = 1) => {
+    const cantidadAgregada = Math.max(1, Number(cantidad) || 1);
+    const stockDisponible = productos.find((p) => p.id === producto.id)?.stock ?? producto.stock;
+    if (cantidadAgregada > stockDisponible) {
+      console.error("[Productos] stock insuficiente para agregar al carrito");
+      return;
+    }
+
+    const existente = carrito.find((p) => p.id === producto.id);
+
+    if (existente) {
+      const nuevaCantidad = existente.cantidad + cantidadAgregada;
+      if (!existente.detalleId) {
+        console.warn("[Detallepedido] no se encontro detalleId para actualizar el producto");
+        return;
+      }
+      const actualizado = await actualizarDetallePedido(existente.detalleId, nuevaCantidad, producto.precio);
+      if (!actualizado) return;
+      const stockAj = await ajustarStockProducto(producto.id, cantidadAgregada, "disminuir");
+      if (stockAj === null) {
+        await actualizarDetallePedido(existente.detalleId, existente.cantidad, producto.precio);
+        return;
+      }
+      setCarrito((prev) =>
+        prev.map((p) => (p.id === producto.id ? { ...p, cantidad: nuevaCantidad } : p))
+      );
+    } else {
+      const detalle = await registrarDetallePedido(producto, cantidadAgregada);
+      if (!detalle?.id) {
+        return;
+      }
+      const stockAj = await ajustarStockProducto(producto.id, cantidadAgregada, "disminuir");
+      if (stockAj === null) {
+        await eliminarDetallePedido(Number(detalle.id));
+        return;
+      }
+      const detalleId = Number(detalle.id);
+      setCarrito((prev) => [
         ...prev,
         {
+          detalleId,
           id: producto.id,
           nombre: producto.nombre,
           precio: producto.precio,
           imagen: producto.imagen,
           cantidad: cantidadAgregada,
         },
-      ];
-    });
-    void registrarDetallePedido(producto, cantidadAgregada);
+      ]);
+    }
+
     setCantidadesSeleccionadas((prev) => ({
       ...prev,
       [producto.id]: 1,
@@ -225,11 +379,48 @@ export default function Page() {
 
   const disminuir = (_id: number) => {};
 
-  const eliminar = (id: number) => {
+  const eliminar = async (id: number) => {
+    const item = carrito.find((p) => p.id === id);
+    if (!item) return;
+
+    const stockAj = await ajustarStockProducto(id, item.cantidad, "incrementar");
+    if (stockAj === null) {
+      return;
+    }
+
+    if (item.detalleId) {
+      const eliminado = await eliminarDetallePedido(item.detalleId);
+      if (!eliminado) {
+        await ajustarStockProducto(id, item.cantidad, "disminuir");
+        return;
+      }
+    }
+
     setCarrito((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const vaciarCarrito = () => setCarrito([]);
+  const vaciarCarrito = async () => {
+    const pendientes: ItemCarrito[] = [];
+    for (const item of carrito) {
+      const stockAj = await ajustarStockProducto(item.id, item.cantidad, "incrementar");
+      if (stockAj === null) {
+        pendientes.push(item);
+        continue;
+      }
+      if (item.detalleId) {
+        const eliminado = await eliminarDetallePedido(item.detalleId);
+        if (!eliminado) {
+          await ajustarStockProducto(item.id, item.cantidad, "disminuir");
+          pendientes.push(item);
+          continue;
+        }
+      }
+    }
+    setCarrito(pendientes);
+    if (pendientes.length === 0) {
+      setCantidadesSeleccionadas({});
+    }
+  };
 
   const total = carrito.reduce(
     (acc, item) => acc + item.precio * item.cantidad,
@@ -332,7 +523,10 @@ export default function Page() {
       {/* GRID DE PRODUCTOS (10 por página) */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {productosPagina.map((producto) => {
-          const cantidadActual = cantidadesSeleccionadas[producto.id] ?? 1;
+          const stockDisponible = producto.stock;
+          const sinStock = stockDisponible <= 0;
+          const cantidadSeleccionada = cantidadesSeleccionadas[producto.id] ?? 1;
+          const cantidadActual = sinStock ? 0 : Math.min(cantidadSeleccionada, stockDisponible);
           const subtotalActual = cantidadActual * producto.precio;
           return (
             <div
@@ -349,8 +543,13 @@ export default function Page() {
                 />
 
                 <button
-                  onClick={() => agregarAlCarrito(producto, cantidadActual)}
-                  className="absolute top-2 right-2 bg-black text-white p-2 rounded-full"
+                  onClick={() => {
+                    if (!sinStock) {
+                      void agregarAlCarrito(producto, cantidadActual || 1);
+                    }
+                  }}
+                  disabled={sinStock}
+                  className={`absolute top-2 right-2 p-2 rounded-full ${sinStock ? "bg-gray-400 text-white cursor-not-allowed" : "bg-black text-white"}`}
                 >
                   <FaShoppingCart />
                 </button>
@@ -364,6 +563,14 @@ export default function Page() {
                 <p className="text-lg font-semibold text-slate-700 text-center">
                   Precio unitario: ${producto.precio.toLocaleString("es-CO")}
                 </p>
+                <p className="text-sm text-gray-600 text-center">
+                  Stock disponible: {stockDisponible}
+                </p>
+                {sinStock && (
+                  <p className="text-sm font-semibold text-red-600 text-center">
+                    No disponible por falta de stock
+                  </p>
+                )}
 
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium text-gray-600">
@@ -371,17 +578,25 @@ export default function Page() {
                     <input
                       type="number"
                       min="1"
-                      value={cantidadActual}
+                      max={Math.max(stockDisponible, 1)}
+                      value={sinStock ? 0 : cantidadActual}
                       onChange={(e) => {
                         const valor = Math.max(1, Number(e.target.value) || 1);
+                        const limite = Math.min(valor, Math.max(stockDisponible, 1));
                         setCantidadesSeleccionadas((prev) => ({
                           ...prev,
-                          [producto.id]: valor,
+                          [producto.id]: limite,
                         }));
                       }}
-                      className="mt-1 w-full rounded border px-3 py-1"
+                      disabled={sinStock}
+                      className={`mt-1 w-full rounded border px-3 py-1 ${sinStock ? "bg-gray-100 cursor-not-allowed" : ""}`}
                     />
                   </label>
+                  {!sinStock && cantidadSeleccionada > stockDisponible && (
+                    <p className="text-xs text-red-600">
+                      La cantidad no puede superar el stock disponible ({stockDisponible}).
+                    </p>
+                  )}
                   <p className="text-sm text-gray-700">
                     Subtotal: ${subtotalActual.toLocaleString("es-CO")}
                   </p>
@@ -478,7 +693,7 @@ export default function Page() {
               <button
                 onClick={() => {
                   const cantidadModal = cantidadesSeleccionadas[modalProducto.id] ?? 1;
-                  agregarAlCarrito(modalProducto, cantidadModal);
+                  void agregarAlCarrito(modalProducto, cantidadModal);
                   setModalProducto(null);
                 }}
                 className="mt-4 bg-black text-white px-6 py-2 rounded-lg"
@@ -544,7 +759,7 @@ export default function Page() {
 
                   <button
                     className="text-red-600"
-                    onClick={() => eliminar(item.id)}
+                    onClick={() => void eliminar(item.id)}
                   >
                     <FaTrash />
                   </button>
@@ -558,7 +773,7 @@ export default function Page() {
               </p>
 
               <button
-                onClick={vaciarCarrito}
+                onClick={() => void vaciarCarrito()}
                 className="mt-4 w-full bg-red-600 text-white py-2 rounded"
               >
                 Vaciar Carrito

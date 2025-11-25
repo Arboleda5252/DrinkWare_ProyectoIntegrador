@@ -7,11 +7,13 @@ import { sql } from '@/app/libs/database';
 export const runtime = 'nodejs';
 
 type UsuarioListado = {
+  id: number;
   nombre: string;
   apellido: string;
-  correo: string;     
+  correo: string;
   documento: string;
-  rol: string | null; 
+  rol: string | null;
+  activo: boolean;
 };
 
 export async function GET() {
@@ -23,7 +25,8 @@ export async function GET() {
         u.apellido,
         u.email AS correo,
         u.documento,
-        r.rol
+        r.rol,
+        u.activo
       FROM usuario AS u
       LEFT JOIN user_rol AS r ON r.id_rol = u.id_rol
       ORDER BY u.apellido, u.nombre;
