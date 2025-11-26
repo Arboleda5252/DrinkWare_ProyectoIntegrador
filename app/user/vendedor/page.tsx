@@ -28,6 +28,7 @@ export default function Page() {
   const [inventoryProducts, setInventoryProducts] = useState<InventoryProduct[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState("");
+  const [inventorySearch, setInventorySearch] = useState("");
   const [stockError, setStockError] = useState("");
 
   const selectedProduct = useMemo(() => {
@@ -57,6 +58,18 @@ export default function Page() {
       };
     });
   }, [cartItems, inventoryProducts]);
+
+  const filteredInventoryProducts = useMemo(() => {
+    const term = inventorySearch.trim().toLowerCase();
+    if (!term) {
+      return inventoryProducts;
+    }
+    return inventoryProducts.filter((product) => {
+      const name = (product.name ?? "").toLowerCase();
+      const description = (product.description ?? "").toLowerCase();
+      return name.includes(term) || description.includes(term);
+    });
+  }, [inventoryProducts, inventorySearch]);
 
   const handleAddProduct = () => {
     if (!selectedProduct || !selectedProductId || quantity < 1 || stockError) return;
@@ -133,6 +146,12 @@ export default function Page() {
     fetchInventoryProducts(controller.signal);
     return () => controller.abort();
   }, [fetchInventoryProducts]);
+
+  useEffect(() => {
+    if (showInventoryModal) {
+      setInventorySearch("");
+    }
+  }, [showInventoryModal]);
 
   useEffect(() => {
     if (!selectedProductId && inventoryProducts.length > 0) {
@@ -374,11 +393,24 @@ export default function Page() {
               </button>
             </div>
 
-            <div className="mt-4 max-h-[60vh] overflow-y-auto">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label className="w-full text-left text-sm font-medium text-slate-600">
+                <input
+                  type="text"
+                  value={inventorySearch}
+                  onChange={(event) => setInventorySearch(event.target.value)}
+                  placeholder="Buscar en el inventario"
+                  disabled={inventoryLoading || inventoryProducts.length === 0}
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 max-h-[60vh] overflow-y-auto text-center">
               {inventoryLoading ? (
                 <p className="text-center text-sm text-slate-500">Cargando inventario...</p>
               ) : inventoryError ? (
-                <div className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="mx-auto max-w-md rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                   <p>{inventoryError}</p>
                   <button
                     type="button"
@@ -392,29 +424,35 @@ export default function Page() {
                 <p className="text-center text-sm text-slate-500">
                   No hay productos disponibles en el inventario.
                 </p>
+              ) : filteredInventoryProducts.length === 0 ? (
+                <p className="text-center text-sm text-slate-500">
+                  No se encontraron productos para esa busqueda.
+                </p>
               ) : (
-                <table className="w-full table-auto text-left text-sm">
-                  <thead>
-                    <tr className="text-xs uppercase tracking-wide text-slate-400">
-                      <th className="py-2">Nombre</th>
-                      <th className="py-2">Descripción</th>
-                      <th className="py-2 text-right">Stock</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventoryProducts.map((product) => (
-                      <tr key={product.id ?? product.name} className="border-t border-slate-100">
-                        <td className="py-3 font-semibold text-slate-800">{product.name}</td>
-                        <td className="py-3 text-slate-500">
-                          {product.description ?? "Sin descripción"}
-                        </td>
-                        <td className="py-3 text-right font-bold text-slate-900">
-                          {product.stock ?? 0}
-                        </td>
+                <div className="flex justify-center">
+                  <table className="w-full max-w-2xl table-auto text-center text-sm">
+                    <thead>
+                      <tr className="text-xs uppercase tracking-wide text-slate-400">
+                        <th className="py-2">Nombre</th>
+                        <th className="py-2">Descripción</th>
+                        <th className="py-2">Stock</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredInventoryProducts.map((product) => (
+                        <tr key={product.id ?? product.name} className="border-t border-slate-100">
+                          <td className="py-3 font-semibold text-slate-800">{product.name}</td>
+                          <td className="py-3 text-slate-500">
+                            {product.description ?? "Sin descripción"}
+                          </td>
+                          <td className="py-3 font-bold text-slate-900">
+                            {product.stock ?? 0}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
