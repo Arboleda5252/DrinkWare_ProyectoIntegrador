@@ -73,11 +73,6 @@ function getLinksByRole(roleId: number | null | undefined): MenuLink[] {
   ];
 
   switch (roleId) {
-    case 1:
-     return [
-        ...defaultLinks,
-        { href: "/user/usuario/alertas", label: "Notificaciones" },
-      ];
     case 2:
       return [
         ...defaultLinks,

@@ -176,21 +176,18 @@ export default function Page() {
         <header className="space-y-4 border-b pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-teal-600">
-                Panel de vendedor
-              </p>
               <h1 className="text-3xl font-bold text-slate-800">Registrar nueva venta</h1>
             </div>
             <button
               type="button"
               onClick={handleInventoryButtonClick}
-              className="inline-flex items-center justify-center rounded-full border border-teal-200 px-5 py-2 text-sm font-semibold text-teal-700 transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500"
+              className="inline-flex items-center justify-center rounded-full border border-blue-700 px-5 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
             >
               Ver inventario
             </button>
           </div>
           <p className="text-sm text-slate-500">
-            Completa los datos del cliente, selecciona productos y confirma el pedido.
+            Completa los datos del cliente y confirma el pedido.
           </p>
         </header>
 
@@ -204,7 +201,7 @@ export default function Page() {
                   type="text"
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
-                  placeholder="Ej. Laura Méndez"
+                  placeholder="Nombre del cliente"
                   className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
                 />
               </label>
@@ -215,7 +212,7 @@ export default function Page() {
                   type="tel"
                   value={customerPhone}
                   onChange={(event) => setCustomerPhone(event.target.value)}
-                  placeholder="Ej. 300 123 4567"
+                  placeholder="#######"
                   className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
                 />
               </label>
@@ -225,7 +222,7 @@ export default function Page() {
                 <textarea
                   value={customerAddress}
                   onChange={(event) => setCustomerAddress(event.target.value)}
-                  placeholder="Calle, número, barrio y ciudad"
+                  placeholder="Ciudad y dirección completa"
                   className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
                 />
               </label>
@@ -290,7 +287,7 @@ export default function Page() {
                 type="button"
                 onClick={handleAddProduct}
                 disabled={!selectedProductId || !!stockError || inventoryProducts.length === 0}
-                className="w-full rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className="w-full rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-400 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 Añadir al pedido
               </button>
@@ -301,13 +298,7 @@ export default function Page() {
         <div className="rounded-xl border border-slate-100 p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-700">Productos seleccionados</h2>
-            <button
-              type="button"
-              onClick={() => setShowCatalog((prev) => !prev)}
-              className="text-sm font-semibold text-teal-600 hover:text-teal-500"
-            >
-              {showCatalog ? "Ocultar listado de productos" : "Ver listado de productos"}
-            </button>
+            
           </div>
 
           {cartItems.length === 0 ? (
@@ -361,40 +352,6 @@ export default function Page() {
             </p>
           )}
         </div>
-
-        {showCatalog && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6">
-            <h3 className="text-base font-semibold text-slate-700">Listado de productos</h3>
-            {inventoryLoading && inventoryProducts.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-500">Cargando inventario...</p>
-            ) : inventoryProducts.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-500">No hay productos disponibles.</p>
-            ) : (
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {inventoryProducts.map((product) => (
-                  <article
-                    key={product.id}
-                    className="rounded-lg border border-white bg-white p-4 shadow-sm"
-                  >
-                    <h4 className="text-sm font-semibold text-slate-900">{product.name}</h4>
-                    <p className="text-xs uppercase tracking-wide text-slate-400">
-                      SKU: {product.id}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {product.description || "Sin descripción"}
-                    </p>
-                    <p className="mt-3 text-lg font-bold text-teal-600">
-                      ${product.price?.toLocaleString("es-CO") ?? "0"}
-                    </p>
-                    <p className="text-xs font-semibold text-slate-500">
-                      Stock: {product.stock ?? 0} unidad(es)
-                    </p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {showInventoryModal && (
@@ -402,9 +359,6 @@ export default function Page() {
           <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b pb-4">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-teal-600">
-                  Inventario
-                </p>
                 <h3 className="text-2xl font-bold text-slate-900">Listado de productos</h3>
                 <p className="text-sm text-slate-500">
                   Consulta el stock actual. Solo lectura para el vendedor.

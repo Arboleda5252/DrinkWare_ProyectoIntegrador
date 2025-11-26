@@ -254,6 +254,15 @@ export default function Page() {
 
   const estadoResumen = carrito.length === 0 && !cargando ? "Tu carrito esta vacio." : null;
 
+  const pedidosSeguimiento = useMemo(() => {
+    if (!usuarioActivo) return [];
+    return pedidosUsuario.filter((item) => {
+      const mismoUsuario = Number(item.detalle.idUsuario) === Number(usuarioActivo.id);
+      const estado = (item.detalle.estado ?? "").toLowerCase();
+      return mismoUsuario && estado === "confirmado";
+    });
+  }, [pedidosUsuario, usuarioActivo]);
+
   const confirmarPedido = useCallback(async () => {
     if (carrito.length === 0 || confirmandoPedido) {
       return;
@@ -421,48 +430,33 @@ export default function Page() {
           <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5">
             <h3 className="text-xl font-semibold text-gray-900">Seguimiento de pedidos</h3>
             <p className="text-sm text-gray-500">
-              Consulta el estado de tus productos pagados
+              Consulta tus productos confirmados para el envio.
             </p>
-            {pedidosUsuario.length === 0 ? (
+            {pedidosSeguimiento.length === 0 ? (
               <p className="mt-4 text-sm text-gray-500">
                 No hay pedidos en este momento.
               </p>
             ) : (
               <ul className="mt-4 space-y-3">
-                {pedidosUsuario.map((item) => {
-                  const estado = item.detalle.estado ?? "Pendiente";
-                  const estadoLower = estado.toLowerCase();
-                  const badgeColor =
-                    estadoLower === "confirmado"
-                      ? "bg-sky-100 text-sky-700"
-                      : estadoLower === "pagado" || estadoLower === "completado"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-white text-white";
-                  return (
-                    <li
-                      key={`tracking-${item.detalle.id}`}
-                      className="rounded-xl border border-gray-100 p-4 text-sm text-gray-600"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="font-semibold text-gray-900">
-                          {item.producto?.nombre ?? "Producto sin nombre"}
-                        </p>
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeColor}`}>
-                          {estado}
-                        </span>
-                      </div>
-                      <p className="mt-2">
-                        Ultima actualizacion:{" "}
-                        {item.detalle.fechaPago
-                          ? new Date(item.detalle.fechaPago).toLocaleDateString()
-                          : "En proceso"}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        ID detalle #{item.detalle.id} • Cantidad {item.detalle.cantidad}
-                      </p>
-                    </li>
-                  );
-                })}
+                {pedidosSeguimiento.map((item) => (
+                  <li
+                    key={`tracking-${item.detalle.id}`}
+                    className="rounded-xl border border-gray-100 p-4 text-sm text-gray-600"
+                  >
+                    <p className="font-semibold text-gray-900">
+                      {item.producto?.nombre ?? "Producto sin nombre"}
+                    </p>
+                    <p className="mt-2">
+                      Ultima actualizacion:{" "}
+                      {item.detalle.fechaPago
+                        ? new Date(item.detalle.fechaPago).toLocaleDateString()
+                        : "En proceso"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      ID detalle #{item.detalle.id} • Cantidad {item.detalle.cantidad}
+                    </p>
+                  </li>
+                ))}
               </ul>
             )}
           </div>

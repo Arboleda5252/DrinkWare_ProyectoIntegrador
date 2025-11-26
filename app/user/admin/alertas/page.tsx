@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { BiAngry } from "react-icons/bi";
-import { MdWarningAmber } from "react-icons/md";
+import { MdWarningAmber, MdOutlineMarkEmailUnread } from "react-icons/md";
 import { FaSpinner } from "react-icons/fa";
 
 type Producto = {
@@ -76,16 +76,15 @@ export default function AdminAlertasPage() {
 
   const normalizarEstado = React.useCallback((estado?: string | null) => (estado ?? "").toLowerCase().trim(), []);
 
-  const productosDisponibles = React.useMemo(
-    () =>
-      productos.filter((producto) => {
-        const estado = normalizarEstado(producto.estados);
-        if (!estado) return false;
-        if (estado.includes("No Disponible")) return false;
-        if (estado.includes("Inactivo")) return false;
-        return estado.includes("Disponible");
-      }),
-    [productos, normalizarEstado]
+  const estaDisponible = React.useCallback(
+    (producto: Producto) => {
+      const estado = normalizarEstado(producto.estados);
+      if (!estado) return false;
+      if (estado.includes("no disponible")) return false;
+      if (estado.includes("inactivo")) return false;
+      return estado.includes("disponible");
+    },
+    [normalizarEstado]
   );
 
   const productosNoDisponibles = React.useMemo(
@@ -98,15 +97,42 @@ export default function AdminAlertasPage() {
   );
 
   const agotados = React.useMemo(
-    () => productosDisponibles.filter((producto) => Number(producto.stock) <= 0),
-    [productosDisponibles]
+    () =>
+      productos.filter((producto) => {
+        if (!estaDisponible(producto)) {
+          return false;
+        }
+        const stock = Number(producto.stock);
+        if (!Number.isFinite(stock)) {
+          return false;
+        }
+        return stock <= 0;
+      }),
+    [productos, estaDisponible]
   );
 
   const stockBajo = React.useMemo(
     () =>
-      productosDisponibles.filter((producto) => Number(producto.stock) > 0 && Number(producto.stock) <= 12),
-    [productosDisponibles]
+      productos.filter((producto) => {
+        if (!estaDisponible(producto)) {
+          return false;
+        }
+        const stock = Number(producto.stock);
+        if (!Number.isFinite(stock)) {
+          return false;
+        }
+        return stock > 0 && stock < 20;
+      }),
+    [productos, estaDisponible]
   );
+
+  const productosPorId = React.useMemo(() => {
+    const map = new Map<number, Producto>();
+    productos.forEach((producto) => {
+      map.set(producto.id, producto);
+    });
+    return map;
+  }, [productos]);
 
   const pedidosAceptados = React.useMemo(
     () => pedidosProveedor.filter((pedido) => (pedido.estado ?? "").toLowerCase() === "aceptado"),
@@ -118,12 +144,115 @@ export default function AdminAlertasPage() {
     [pedidosProveedor]
   );
 
+  const alertasStock = React.useMemo(() => {
+    const alertas: Array<{
+      id: string;
+      producto: Producto;
+      tipo: "agotado" | "stock-bajo";
+      prioridad: number;
+      titulo: string;
+      mensaje: string;
+    }> = [];
+
+    productos.forEach((producto) => {
+      if (!estaDisponible(producto)) {
+        return;
+      }
+      const stock = Number(producto.stock);
+      if (!Number.isFinite(stock)) {
+        return;
+      }
+
+      if (stock <= 0) {
+        alertas.push({
+          id: `${producto.id}-agotado`,
+          producto,
+          tipo: "agotado",
+          prioridad: 1,
+          titulo: `Producto agotado: ${producto.nombre}`,
+          mensaje: "Stock en cero. Solicita un pedido al proveedor cuanto antes.",
+        });
+        return;
+      }
+
+      if (stock < 20) {
+        alertas.push({
+          id: `${producto.id}-bajo`,
+          producto,
+          tipo: "stock-bajo",
+          prioridad: 2,
+          titulo: `Stock bajo: ${producto.nombre}`,
+          mensaje: "El inventario esta por debajo del nivel recomendado.",
+        });
+      }
+    });
+
+    return alertas.sort((a, b) => {
+      if (a.prioridad !== b.prioridad) {
+        return a.prioridad - b.prioridad;
+      }
+      const stockA = Number(a.producto.stock);
+      const stockB = Number(b.producto.stock);
+      if (stockA !== stockB) {
+        return stockA - stockB;
+      }
+      return normalizarEstado(a.producto.nombre).localeCompare(normalizarEstado(b.producto.nombre));
+    });
+  }, [productos, normalizarEstado, estaDisponible]);
+
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-4xl">
         <header className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Notificaciones</h1>
         </header>
+
+        {!cargando && !error && (
+          <section className="mb-6 rounded-2xl bg-white shadow">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div className="flex items-center gap-2 text-gray-900">
+                <MdOutlineMarkEmailUnread className="h-5 w-5 text-indigo-500" />
+                <h2 className="text-lg font-semibold">Bandeja de alertas de inventario</h2>
+              </div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {alertasStock.length} mensajes
+              </span>
+            </div>
+            {alertasStock.length === 0 ? (
+              <p className="px-5 py-8 text-sm text-gray-500">No hay alertas de inventario por ahora.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {alertasStock.map((alerta, index) => (
+                  <li key={alerta.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-1 items-start gap-3">
+                      <span
+                        className={`mt-1 inline-flex h-10 w-10 items-center justify-center rounded-full ${
+                          alerta.tipo === "agotado" ? "bg-red-100 text-red-600" : "bg-yellow-100 text-yellow-600"
+                        }`}
+                      >
+                        {alerta.tipo === "agotado" ? <BiAngry className="h-5 w-5" /> : <MdWarningAmber className="h-5 w-5" />}
+                      </span>
+                      <div>
+                        <p className="font-semibold text-gray-900">{alerta.titulo}</p>
+                        <p className="text-sm text-gray-600">{alerta.mensaje}</p>
+                        <p className="mt-1 text-xs text-gray-400">
+                          Stock actual: <strong>{alerta.producto.stock}</strong> &middot;{" "}
+                          {alerta.producto.categoria ?? "Sin categoria"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <span className="rounded-full bg-gray-100 px-3 py-1 font-semibold text-gray-600">
+                        Orden #{index + 1}
+                      </span>
+                      <span>Actualizado hace unos segundos</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {cargando && (
           <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
@@ -140,39 +269,6 @@ export default function AdminAlertasPage() {
 
         {!cargando && !error && (
           <div className="space-y-6">
-            <section className="rounded-2xl bg-white p-5 shadow">
-              <div className="mb-3 flex items-center gap-2 text-yellow-600">
-                <MdWarningAmber className="h-5 w-5" />
-                <h2 className="text-lg font-semibold">Productos con stock bajo</h2>
-              </div>
-              {stockBajo.length === 0 ? (
-                <p className="text-sm text-gray-500">No hay productos con stock bajo</p>
-              ) : (
-                <ul className="space-y-3">
-                  {stockBajo.map((producto) => (
-                    <li
-                      key={producto.id}
-                      className="flex flex-col rounded-xl border border-yellow-100 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-semibold">
-                          {producto.nombre}{" "}
-                          <span className="text-xs font-medium text-gray-500">
-                            {producto.categoria ?? "Sin categoría"}
-                          </span>
-                        </p>
-                        <p className="text-xs text-yellow-800">
-                          Stock actual: <strong>{producto.stock}</strong>. Considera solicitar al proveedor muy pronto.
-                        </p>
-                      </div>
-                      <span className="mt-2 inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold uppercase text-yellow-700 sm:mt-0">
-                        Atención
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
 
             <section className="rounded-2xl bg-white p-5 shadow">
               <div className="mb-3 flex items-center gap-2 text-green-600">
@@ -192,26 +288,33 @@ export default function AdminAlertasPage() {
                 <p className="text-sm text-gray-500">No hay pedidos aceptados recientemente.</p>
               ) : (
                 <ul className="space-y-3">
-                  {pedidosAceptados.map((pedido) => (
-                    <li
-                      key={pedido.id}
-                      className="flex flex-col rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-900 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-semibold">
-                          Pedido #{pedido.id} &middot; Cantidad solicitada: {pedido.cantidad}
-                        </p>
-                        <p className="text-xs text-green-800">
-                          {pedido.descripcion
-                            ? `Nota del proveedor: ${pedido.descripcion}`
-                            : "El proveedor aceptó la solicitud y aumentará el stock."}
-                        </p>
-                      </div>
-                      <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-bold uppercase text-green-700 sm:mt-0">
-                        Aceptado
-                      </span>
-                    </li>
-                  ))}
+                  {pedidosAceptados.map((pedido) => {
+                    const productoPedido = productosPorId.get(pedido.producto_id);
+                    return (
+                      <li
+                        key={pedido.id}
+                        className="flex flex-col rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-900 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold">
+                            Pedido #{pedido.id} &middot; Cantidad solicitada: {pedido.cantidad}
+                          </p>
+                          <p className="text-xs text-green-800">
+                            Producto solicitado:{" "}
+                            <strong>{productoPedido ? productoPedido.nombre : `ID ${pedido.producto_id}`}</strong>
+                          </p>
+                          <p className="text-xs text-green-800">
+                            {pedido.descripcion
+                              ? `Nota del proveedor: ${pedido.descripcion}`
+                              : "El proveedor acepto la solicitud y aumentara el stock."}
+                          </p>
+                        </div>
+                        <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-bold uppercase text-green-700 sm:mt-0">
+                          Aceptado
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -234,26 +337,33 @@ export default function AdminAlertasPage() {
                 <p className="text-sm text-gray-500">No hay pedidos rechazados.</p>
               ) : (
                 <ul className="space-y-3">
-                  {pedidosRechazados.map((pedido) => (
-                    <li
-                      key={pedido.id}
-                      className="flex flex-col rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-semibold">
-                          Pedido #{pedido.id} &middot; Cantidad solicitada: {pedido.cantidad}
-                        </p>
-                        <p className="text-xs text-red-800">
-                          {pedido.descripcion
-                            ? `Motivo: ${pedido.descripcion}`
-                            : "El proveedor no puede surtir este pedido por ahora."}
-                        </p>
-                      </div>
-                      <span className="mt-2 inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-bold uppercase text-red-700 sm:mt-0">
-                        Rechazado
-                      </span>
-                    </li>
-                  ))}
+                  {pedidosRechazados.map((pedido) => {
+                    const productoPedido = productosPorId.get(pedido.producto_id);
+                    return (
+                      <li
+                        key={pedido.id}
+                        className="flex flex-col rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold">
+                            Pedido #{pedido.id} &middot; Cantidad solicitada: {pedido.cantidad}
+                          </p>
+                          <p className="text-xs text-red-800">
+                            Producto solicitado:{" "}
+                            <strong>{productoPedido ? productoPedido.nombre : `ID ${pedido.producto_id}`}</strong>
+                          </p>
+                          <p className="text-xs text-red-800">
+                            {pedido.descripcion
+                              ? `Motivo: ${pedido.descripcion}`
+                              : "El proveedor no puede surtir este pedido por ahora."}
+                          </p>
+                        </div>
+                        <span className="mt-2 inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-bold uppercase text-red-700 sm:mt-0">
+                          Rechazado
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -294,39 +404,6 @@ export default function AdminAlertasPage() {
               )}
             </section>
 
-            <section className="rounded-2xl bg-white p-5 shadow">
-              <div className="mb-3 flex items-center gap-2 text-red-600">
-                <BiAngry className="h-5 w-5" />
-                <h2 className="text-lg font-semibold">Productos agotados</h2>
-              </div>
-              {agotados.length === 0 ? (
-                <p className="text-sm text-gray-500">No hay productos agotados por el momento.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {agotados.map((producto) => (
-                    <li
-                      key={producto.id}
-                      className="flex flex-col rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-semibold">
-                          {producto.nombre}{" "}
-                          <span className="text-xs font-medium text-gray-500">
-                            {producto.categoria ?? "Sin categoría"}
-                          </span>
-                        </p>
-                        <p className="text-xs text-red-800">
-                          Sin stock disponible. Es necesario realizar un pedido inmediatamente.
-                        </p>
-                      </div>
-                      <span className="mt-2 inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-bold uppercase text-red-700 sm:mt-0">
-                        Agotado
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
           </div>
         )}
       </div>
