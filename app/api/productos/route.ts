@@ -16,6 +16,7 @@ type ProductoListado = {
   estados: string | null; 
 };
 
+// GET
 export async function GET() {
   try {
     const { rows } = await sql<ProductoListado>(`
@@ -49,6 +50,7 @@ export async function GET() {
   }
 }
 
+// POST
 export async function POST(req: NextRequest) {
   try {
     let body: any;

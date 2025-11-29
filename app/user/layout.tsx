@@ -21,7 +21,7 @@ export default async function UserLayout({ children }: UserLayoutProps) {
 
   const displayName = user.nombre || user.nombreusuario;
   const displayRole = user.rol ?? "Usuario";
-  const menuLinks = getLinksByRole(user.id_rol);
+  const menuLinks = Link_Roles(user.id_rol);
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-10 md:flex-row">
@@ -66,7 +66,8 @@ export default async function UserLayout({ children }: UserLayoutProps) {
   );
 }
 
-function getLinksByRole(roleId: number | null | undefined): MenuLink[] {
+// Link por rol de usuario
+function Link_Roles(roleId: number | null | undefined): MenuLink[] {
   const defaultLinks: MenuLink[] = [
     { href: "/user/usuario", label: "Mi cuenta" },
     { href: "/user/usuario/compras", label: "Mis compras" },

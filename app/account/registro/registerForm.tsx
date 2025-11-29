@@ -38,7 +38,7 @@ export default function RegisterForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    // Restriccion de enviar registro si es menor de edad
+    // Restriccion menor de edad
     if (!e.currentTarget.checkValidity()) {
       e.currentTarget.reportValidity();
       return;

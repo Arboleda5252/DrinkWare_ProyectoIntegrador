@@ -16,6 +16,7 @@ type ProductoDetalle = {
   estados: string | null;
 };
 
+// GET
 export async function GET(
   _req: Request,
   { params }: { params: { id: string } }
@@ -60,6 +61,7 @@ export async function GET(
   }
 }
 
+// POST
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id);
@@ -232,6 +234,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
+// PUT
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id);

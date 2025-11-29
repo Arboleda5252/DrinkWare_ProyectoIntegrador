@@ -207,7 +207,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Modal para editar rol */}
+      {/* Modal editar rol */}
       {modalAbierto && usuarioEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-xl shadow-lg p-6 min-w-[320px] max-w-xs relative">

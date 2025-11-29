@@ -7,7 +7,7 @@ type CartItem = {
   quantity: number;
 };
 
-type InventoryProduct = {
+type InventorioProducto = {
   id?: string;
   name: string;
   price?: number;
@@ -15,41 +15,62 @@ type InventoryProduct = {
   stock?: number;
 };
 
+type ventas = {
+  id: number;
+  productoId: number;
+  cantidad: number;
+  precioProducto: number;
+  subtotal: number;
+  fechaPago: string | null;
+  estado: string | null;
+  nombreCliente: string | null;
+};
+
 export default function Page() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState<number | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [showCatalog, setShowCatalog] = useState(false);
-  const [confirmationMessage, setConfirmationMessage] = useState("");
   const [showInventoryModal, setShowInventoryModal] = useState(false);
-  const [inventoryProducts, setInventoryProducts] = useState<InventoryProduct[]>([]);
+  const [showSalesModal, setShowSalesModal] = useState(false);
+  const [inventorioProductos, setinventorioProductos] = useState<InventorioProducto[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState("");
   const [inventorySearch, setInventorySearch] = useState("");
+  const [ventasRecords, setventasRecords] = useState<ventas[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState("");
   const [stockError, setStockError] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [vendedorId, setVendedorId] = useState<number | null>(null);
+  const [vendedorError, setVendedorError] = useState("");
 
-  const selectedProduct = useMemo(() => {
-    return inventoryProducts.find((product) => product.id === selectedProductId);
-  }, [inventoryProducts, selectedProductId]);
+  // Producto seleccionado
+  const seleccionarProducto = useMemo(() => {
+    return inventorioProductos.find((product) => product.id === selectedProductId);
+  }, [inventorioProductos, selectedProductId]);
 
-  const selectedProductCartQuantity = useMemo(() => {
+  // Cantidad del producto seleccionado en el carrito
+  const seleccionarProductoCart = useMemo(() => {
     return cartItems.find((item) => item.productId === selectedProductId)?.quantity ?? 0;
   }, [cartItems, selectedProductId]);
 
+  // Total del carrito
   const totalAmount = useMemo(() => {
     return cartItems.reduce((acc, item) => {
-      const product = inventoryProducts.find((prod) => prod.id === item.productId);
+      const product = inventorioProductos.find((prod) => prod.id === item.productId);
       if (!product) return acc;
       return acc + (product.price ?? 0) * item.quantity;
     }, 0);
-  }, [cartItems, inventoryProducts]);
+  }, [cartItems, inventorioProductos]);
 
-  const detailedItems = useMemo(() => {
+  // Detalles en el carrito
+  const detalleItems = useMemo(() => {
     return cartItems.map((item) => {
-      const product = inventoryProducts.find((prod) => prod.id === item.productId);
+      const product = inventorioProductos.find((prod) => prod.id === item.productId);
       return {
         ...item,
         name: product?.name ?? "Producto",
@@ -57,22 +78,40 @@ export default function Page() {
         subtotal: (product?.price ?? 0) * item.quantity,
       };
     });
-  }, [cartItems, inventoryProducts]);
+  }, [cartItems, inventorioProductos]);
 
-  const filteredInventoryProducts = useMemo(() => {
+  // Filtrado de inventario
+  const filtradoInventarioProducts = useMemo(() => {
     const term = inventorySearch.trim().toLowerCase();
     if (!term) {
-      return inventoryProducts;
+      return inventorioProductos;
     }
-    return inventoryProducts.filter((product) => {
+    return inventorioProductos.filter((product) => {
       const name = (product.name ?? "").toLowerCase();
       const description = (product.description ?? "").toLowerCase();
       return name.includes(term) || description.includes(term);
     });
-  }, [inventoryProducts, inventorySearch]);
+  }, [inventorioProductos, inventorySearch]);
 
-  const handleAddProduct = () => {
-    if (!selectedProduct || !selectedProductId || quantity < 1 || stockError) return;
+  // Obtener nombre de producto por ID
+  const getProductName = useCallback(
+    (id: number) => {
+      const found = inventorioProductos.find((prod) => Number(prod.id) === id);
+      return found?.name ?? `Producto #${id}`;
+    },
+    [inventorioProductos]
+  );
+
+  // Agregar producto al carrito
+  const AddProduct = () => {
+    if (
+      !seleccionarProducto ||
+      !selectedProductId ||
+      quantity === null ||
+      quantity < 1 ||
+      stockError
+    )
+      return;
 
     setCartItems((prev) => {
       const existing = prev.find((item) => item.productId === selectedProductId);
@@ -86,19 +125,88 @@ export default function Page() {
       return [...prev, { productId: selectedProductId, quantity }];
     });
 
-    setQuantity(1);
-    setConfirmationMessage("");
+    setQuantity(null);
+    setFeedback(null);
   };
 
-  const handleRegisterSale = () => {
+  // Registrar venta
+  const RegistrarVenta = async () => {
     if (!customerName || !customerPhone || !customerAddress || cartItems.length === 0) {
-      setConfirmationMessage("Completa los datos del cliente y agrega al menos un producto.");
+      setFeedback({
+        type: "error",
+        message: "Completa los datos del cliente y agrega un producto.",
+      });
       return;
     }
 
-    setConfirmationMessage(
-      `Venta registrada para ${customerName}. Total: $${totalAmount.toLocaleString("es-CO")}`
-    );
+    if (!vendedorId) {
+      setFeedback({
+        type: "error",
+        message: vendedorError || "No se pudo identificar al vendedor activo.",
+      });
+      return;
+    }
+
+    setRegistering(true);
+    setFeedback(null);
+    const totalVenta = totalAmount;
+    const cliente = customerName;
+
+    try {
+      for (const item of cartItems) {
+        const product = inventorioProductos.find((prod) => prod.id === item.productId);
+        if (!product) {
+          throw new Error("Un producto del pedido no existe en el inventario.");
+        }
+        const numericProductId = Number(product.id);
+        if (!Number.isInteger(numericProductId) || numericProductId <= 0) {
+          throw new Error("El producto seleccionado no tiene un identificador válido.");
+        }
+        const price = Number(product.price ?? 0);
+        if (!Number.isFinite(price) || price < 0) {
+          throw new Error("El producto seleccionado no tiene un precio valido.");
+        }
+
+        const res = await fetch("/api/Detallepedido", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id_producto: numericProductId,
+            cantidad: item.quantity,
+            precioProducto: price,
+            idVendedor: vendedorId,
+            estado: "Confirmado",
+            nombreCliente: customerName,
+            direccionCliente: customerAddress,
+            telefonoCliente: customerPhone,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) {
+          throw new Error(data?.error ?? "No fue posible registrar la venta.");
+        }
+      }
+
+      setCartItems([]);
+      setQuantity(null);
+      setCustomerName("");
+      setCustomerPhone("");
+      setCustomerAddress("");
+      setFeedback({
+        type: "success",
+        message: `Venta registrada para ${cliente}. Total: $${totalVenta.toLocaleString("es-CO")}`,
+      });
+      await fetchInventoryProducts();
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Ocurrió un error inesperado al registrar la venta.",
+      });
+    } finally {
+      setRegistering(false);
+    }
   };
 
   const fetchInventoryProducts = useCallback(async (signal?: AbortSignal) => {
@@ -120,7 +228,7 @@ export default function Page() {
         ? payload
         : [];
 
-      const parsed: InventoryProduct[] = rawProducts
+      const parsed: InventorioProducto[] = rawProducts
         .filter((product) => (product?.estados ?? "Disponible") === "Disponible")
         .map((product) => ({
           id: product?.id?.toString() ?? product?.idproducto?.toString() ?? product?.nombre,
@@ -130,7 +238,7 @@ export default function Page() {
           stock: typeof product?.stock === "number" ? product.stock : Number(product?.stock) || 0,
         }));
 
-      setInventoryProducts(parsed);
+      setinventorioProductos(parsed);
     } catch (error) {
       if ((error as Error).name === "AbortError") return;
       setInventoryError(
@@ -141,12 +249,83 @@ export default function Page() {
     }
   }, []);
 
+  // Cargar inventario al iniciar
   useEffect(() => {
     const controller = new AbortController();
     fetchInventoryProducts(controller.signal);
     return () => controller.abort();
   }, [fetchInventoryProducts]);
 
+  // Obtener ID de vendedor activo
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/usuarioEstado", { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
+        if (cancelado) return;
+        if (res.ok && json?.user?.idusuario) {
+          setVendedorId(Number(json.user.idusuario));
+          setVendedorError("");
+        } else {
+          setVendedorError("No se pudo obtener la informacion del vendedor activo.");
+        }
+      } catch {
+        if (!cancelado) {
+          setVendedorError("No se pudo obtener la informacion del vendedor activo.");
+        }
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  // Obtener registros de ventas
+  const fetchSalesRecords = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!vendedorId) {
+        setSalesError("Debes iniciar sesión como vendedor para ver tus ventas.");
+        return;
+      }
+      try {
+        setSalesLoading(true);
+        setSalesError("");
+        const res = await fetch("/api/Detallepedido", { signal, cache: "no-store" });
+        if (!res.ok) {
+          throw new Error("No fue posible obtener las ventas.");
+        }
+        const json = await res.json();
+        const data: any[] = Array.isArray(json?.data) ? json.data : [];
+        const records: ventas[] = data
+          .filter((item) => Number(item.idVendedor ?? item.idvendedor) === vendedorId)
+          .map((item) => ({
+            id: Number(item.id),
+            productoId: Number(item.productoId ?? item.id_producto ?? 0),
+            cantidad: Number(item.cantidad ?? 0),
+            precioProducto: Number(item.precioProducto ?? item.precioproducto ?? 0),
+            subtotal: Number(item.subtotal ?? (item.cantidad ?? 0) * (item.precioProducto ?? 0)),
+            fechaPago: typeof item.fechaPago === "string" ? item.fechaPago : null,
+            estado: typeof item.estado === "string" ? item.estado : null,
+            nombreCliente:
+              typeof item.nombreCliente === "string"
+                ? item.nombreCliente
+                : typeof item.nombre_cliente === "string"
+                ? item.nombre_cliente
+                : null,
+          }));
+        setventasRecords(records);
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        setSalesError((error as Error).message ?? "Error al cargar las ventas.");
+      } finally {
+        setSalesLoading(false);
+      }
+    },
+    [vendedorId]
+  );
+
+  // Reset busqueda al abrir inventario
   useEffect(() => {
     if (showInventoryModal) {
       setInventorySearch("");
@@ -154,23 +333,25 @@ export default function Page() {
   }, [showInventoryModal]);
 
   useEffect(() => {
-    if (!selectedProductId && inventoryProducts.length > 0) {
-      setSelectedProductId(inventoryProducts[0].id ?? "");
+    if (!selectedProductId && inventorioProductos.length > 0) {
+      setSelectedProductId(inventorioProductos[0].id ?? "");
     }
-  }, [inventoryProducts, selectedProductId]);
+  }, [inventorioProductos, selectedProductId]);
 
+  // Validar stock al cambiar producto y cantidad
   useEffect(() => {
-    if (!selectedProduct) {
+    if (!seleccionarProducto) {
       setStockError("");
       return;
     }
-    const availableStock = selectedProduct.stock ?? 0;
-    const alreadyAdded = selectedProductCartQuantity;
+    const availableStock = seleccionarProducto.stock ?? 0;
+    const alreadyAdded = seleccionarProductoCart;
     if (availableStock <= 0) {
       setStockError("Este producto no tiene stock disponible.");
       return;
     }
-    if (quantity + alreadyAdded > availableStock) {
+    const desiredQuantity = quantity ?? 0;
+    if (desiredQuantity + alreadyAdded > availableStock) {
       const remaining = Math.max(availableStock - alreadyAdded, 0);
       setStockError(
         remaining > 0
@@ -180,12 +361,19 @@ export default function Page() {
       return;
     }
     setStockError("");
-  }, [selectedProduct, quantity, selectedProductCartQuantity]);
+  }, [seleccionarProducto, quantity, seleccionarProductoCart]);
 
   const handleInventoryButtonClick = () => {
     setShowInventoryModal(true);
-    if (!inventoryProducts.length && !inventoryLoading) {
+    if (!inventorioProductos.length && !inventoryLoading) {
       fetchInventoryProducts();
+    }
+  };
+
+  const handleSalesButtonClick = () => {
+    setShowSalesModal(true);
+    if (!ventasRecords.length && !salesLoading) {
+      fetchSalesRecords();
     }
   };
 
@@ -197,13 +385,22 @@ export default function Page() {
             <div>
               <h1 className="text-3xl font-bold text-slate-800">Registrar nueva venta</h1>
             </div>
-            <button
-              type="button"
-              onClick={handleInventoryButtonClick}
-              className="inline-flex items-center justify-center rounded-full border border-blue-700 px-5 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-            >
-              Ver inventario
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleInventoryButtonClick}
+                className="inline-flex items-center justify-center rounded-full border border-blue-700 px-5 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+              >
+                Ver inventario
+              </button>
+              <button
+                type="button"
+                onClick={handleSalesButtonClick}
+                className="inline-flex items-center justify-center rounded-full border border-emerald-600 px-5 py-2 text-sm font-semibold text-emerald-600 transition hover:border-emerald-400 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+              >
+                Ver ventas realizadas
+              </button>
+            </div>
           </div>
           <p className="text-sm text-slate-500">
             Completa los datos del cliente y confirma el pedido.
@@ -221,7 +418,7 @@ export default function Page() {
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
                   placeholder="Nombre del cliente"
-                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
                 />
               </label>
 
@@ -232,7 +429,7 @@ export default function Page() {
                   value={customerPhone}
                   onChange={(event) => setCustomerPhone(event.target.value)}
                   placeholder="#######"
-                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
                 />
               </label>
 
@@ -242,7 +439,7 @@ export default function Page() {
                   value={customerAddress}
                   onChange={(event) => setCustomerAddress(event.target.value)}
                   placeholder="Ciudad y dirección completa"
-                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
                 />
               </label>
             </div>
@@ -256,24 +453,23 @@ export default function Page() {
                 <select
                   value={selectedProductId}
                   onChange={(event) => setSelectedProductId(event.target.value)}
-                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                  disabled={inventoryLoading || inventoryProducts.length === 0}
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
+                  disabled={inventoryLoading || inventorioProductos.length === 0}
                 >
-                  {inventoryProducts.length === 0 ? (
+                  {inventorioProductos.length === 0 ? (
                     <option value="">
                       {inventoryLoading ? "Cargando inventario..." : "Sin productos disponibles"}
                     </option>
                   ) : (
-                    inventoryProducts.map((product) => (
+                    inventorioProductos.map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name} - $
-                        {product.price?.toLocaleString("es-CO") ?? "0"} (Stock:{" "}
-                        {product.stock ?? 0})
+                        {product.price?.toLocaleString("es-CO") ?? "0"}
                       </option>
                     ))
                   )}
                 </select>
-                {inventoryError && inventoryProducts.length === 0 && (
+                {inventoryError && inventorioProductos.length === 0 && (
                   <span className="mt-1 text-xs text-rose-600">{inventoryError}</span>
                 )}
               </label>
@@ -282,12 +478,20 @@ export default function Page() {
                 Cantidad
                 <input
                   type="number"
-                  min={1}
-                  value={quantity}
-                  onChange={(event) => setQuantity(parseInt(event.target.value, 10) || 1)}
-                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  min={0}
+                  value={quantity ?? ""}
+                  onChange={(event) => {
+                    const rawValue = event.target.value;
+                    if (rawValue === "") {
+                      setQuantity(null);
+                      return;
+                    }
+                    const parsed = parseInt(rawValue, 10);
+                    setQuantity(Number.isNaN(parsed) ? null : Math.max(parsed, 0));
+                  }}
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
                 />
-                {selectedProduct && (
+                {seleccionarProducto && (
                   <span
                     className={`mt-1 text-xs ${
                       stockError ? "text-rose-600" : "text-slate-500"
@@ -296,7 +500,7 @@ export default function Page() {
                     {stockError
                       ? stockError
                       : `Disponible: ${
-                          (selectedProduct.stock ?? 0) - selectedProductCartQuantity
+                          (seleccionarProducto.stock ?? 0) - seleccionarProductoCart
                         } unidad(es) libres.`}
                   </span>
                 )}
@@ -304,8 +508,8 @@ export default function Page() {
 
               <button
                 type="button"
-                onClick={handleAddProduct}
-                disabled={!selectedProductId || !!stockError || inventoryProducts.length === 0}
+                onClick={AddProduct}
+                disabled={!selectedProductId || !!stockError || inventorioProductos.length === 0}
                 className="w-full rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-400 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 Añadir al pedido
@@ -322,7 +526,7 @@ export default function Page() {
 
           {cartItems.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">
-              Aún no has agregado productos. Selecciona uno y pulsa “Añadir al pedido”.
+              Aún no has agregado productos.
             </p>
           ) : (
             <div className="mt-4 overflow-x-auto">
@@ -336,7 +540,7 @@ export default function Page() {
                   </tr>
                 </thead>
                 <tbody>
-                  {detailedItems.map((item) => (
+                  {detalleItems.map((item) => (
                     <tr key={item.productId} className="border-t text-sm">
                       <td className="py-3 font-medium text-slate-700">{item.name}</td>
                       <td className="py-3">{item.quantity}</td>
@@ -353,21 +557,32 @@ export default function Page() {
 
           <div className="mt-6 flex flex-col gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="font-semibold text-slate-700">Total a pagar</p>
+              <p className="font-semibold text-slate-700">Total</p>
               <p className="text-2xl font-bold text-slate-900">${totalAmount.toLocaleString("es-CO")}</p>
             </div>
             <button
               type="button"
-              onClick={handleRegisterSale}
-              className="rounded-lg bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+              onClick={RegistrarVenta}
+              disabled={registering}
+              className="rounded-lg bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-300"
             >
-              Registrar venta
+              {registering ? "Registrando..." : "Registrar venta"}
             </button>
           </div>
 
-          {confirmationMessage && (
-            <p className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {confirmationMessage}
+          {vendedorError && (
+            <p className="mt-3 text-sm text-rose-600">{vendedorError}</p>
+          )}
+
+          {feedback && (
+            <p
+              className={`mt-3 rounded-lg border px-4 py-3 text-sm ${
+                feedback.type === "success"
+                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                  : "border-rose-100 bg-rose-50 text-rose-700"
+              }`}
+            >
+              {feedback.message}
             </p>
           )}
         </div>
@@ -380,7 +595,7 @@ export default function Page() {
               <div>
                 <h3 className="text-2xl font-bold text-slate-900">Listado de productos</h3>
                 <p className="text-sm text-slate-500">
-                  Consulta el stock actual. Solo lectura para el vendedor.
+                  Consulta el stock actual
                 </p>
               </div>
               <button
@@ -400,7 +615,7 @@ export default function Page() {
                   value={inventorySearch}
                   onChange={(event) => setInventorySearch(event.target.value)}
                   placeholder="Buscar en el inventario"
-                  disabled={inventoryLoading || inventoryProducts.length === 0}
+                  disabled={inventoryLoading || inventorioProductos.length === 0}
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
                 />
               </label>
@@ -420,11 +635,11 @@ export default function Page() {
                     Intentar de nuevo
                   </button>
                 </div>
-              ) : inventoryProducts.length === 0 ? (
+              ) : inventorioProductos.length === 0 ? (
                 <p className="text-center text-sm text-slate-500">
                   No hay productos disponibles en el inventario.
                 </p>
-              ) : filteredInventoryProducts.length === 0 ? (
+              ) : filtradoInventarioProducts.length === 0 ? (
                 <p className="text-center text-sm text-slate-500">
                   No se encontraron productos para esa busqueda.
                 </p>
@@ -439,7 +654,7 @@ export default function Page() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredInventoryProducts.map((product) => (
+                      {filtradoInventarioProducts.map((product) => (
                         <tr key={product.id ?? product.name} className="border-t border-slate-100">
                           <td className="py-3 font-semibold text-slate-800">{product.name}</td>
                           <td className="py-3 text-slate-500">
@@ -450,6 +665,89 @@ export default function Page() {
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSalesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-4 py-8 text-slate-700">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900">Ventas registradas</h3>
+               </div>
+              <button
+                type="button"
+                aria-label="Cerrar ventas"
+                onClick={() => setShowSalesModal(false)}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-900"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 max-h-[60vh] overflow-y-auto">
+              {salesLoading ? (
+                <p className="text-center text-sm text-slate-500">Cargando ventas...</p>
+              ) : salesError ? (
+                <div className="mx-auto max-w-md rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  <p>{salesError}</p>
+                  <button
+                    type="button"
+                    onClick={() => fetchSalesRecords()}
+                    className="mt-2 text-xs font-semibold text-rose-700 underline"
+                  >
+                    Intentar de nuevo
+                  </button>
+                </div>
+              ) : !vendedorId ? (
+                <p className="text-center text-sm text-slate-500">
+                  No se pudo determinar el vendedor activo. Intenta nuevamente.
+                </p>
+              ) : ventasRecords.length === 0 ? (
+                <p className="text-center text-sm text-slate-500">
+                  No hay ventas registradas para este vendedor.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full table-auto text-left text-sm">
+                    <thead>
+                      <tr className="text-xs uppercase tracking-wide text-slate-400">
+                        <th className="py-2">Producto</th>
+                        <th className="py-2">Cliente</th>
+                        <th className="py-2 text-right">Cantidad</th>
+                        <th className="py-2 text-right">Total</th>
+                        <th className="py-2 text-right">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ventasRecords.map((venta) => {
+                        const fecha = venta.fechaPago ? new Date(venta.fechaPago) : null;
+                        const total =
+                          Number.isFinite(venta.subtotal) && venta.subtotal > 0
+                            ? venta.subtotal
+                            : venta.cantidad * venta.precioProducto;
+                        return (
+                          <tr key={venta.id} className="border-t border-slate-100">
+                            <td className="py-3 font-semibold text-slate-800">
+                              {getProductName(venta.productoId)}
+                            </td>
+                            <td className="py-3 text-slate-600">{venta.nombreCliente ?? "Sin nombre"}</td>
+                            <td className="py-3 text-right font-semibold text-slate-900">{venta.cantidad}</td>
+                            <td className="py-3 text-right font-semibold text-slate-900">
+                              ${total.toLocaleString("es-CO")}
+                            </td>
+                            <td className="py-3 text-right text-xs text-slate-500">
+                              {fecha ? fecha.toLocaleString("es-CO") : "Sin fecha"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

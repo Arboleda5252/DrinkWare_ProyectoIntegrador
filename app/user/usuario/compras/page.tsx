@@ -453,7 +453,7 @@ export default function Page() {
                         : "En proceso"}
                     </p>
                     <p className="text-xs text-gray-400">
-                      ID detalle #{item.detalle.id} • Cantidad {item.detalle.cantidad}
+                      Cantidad {item.detalle.cantidad}
                     </p>
                   </li>
                 ))}

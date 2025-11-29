@@ -51,6 +51,7 @@ const toDto = (row: DetallePedidoRow) => ({
   telefonoCliente: row.telefonoCliente,
 });
 
+// GET
 export async function GET() {
   try {
     const { rows } = await sql<DetallePedidoRow>(`${baseSelect} ORDER BY iddetallepedido DESC;`);
@@ -64,6 +65,7 @@ export async function GET() {
   }
 }
 
+// POST
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -249,6 +251,7 @@ export async function POST(req: NextRequest) {
 
 const connectionErrorCodes = new Set(["ECONNREFUSED", "ENOTFOUND", "ECONNRESET", "ETIMEDOUT"]);
 
+// Errores a respuestas HTTP
 function mapDetallePedidoError(error: unknown) {
   if (error instanceof DatabaseError) {
     if (error.code === "23503") {

@@ -241,12 +241,6 @@ export default function AdminAlertasPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <span className="rounded-full bg-gray-100 px-3 py-1 font-semibold text-gray-600">
-                        Orden #{index + 1}
-                      </span>
-                      <span>Actualizado hace unos segundos</span>
-                    </div>
                   </li>
                 ))}
               </ul>

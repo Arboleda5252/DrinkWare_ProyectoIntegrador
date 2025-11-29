@@ -66,7 +66,7 @@ export default function Page() {
   const [carrito, setCarrito] = React.useState<ItemCarrito[]>([]);
   const [drawerAbierto, setDrawerAbierto] = React.useState(false);
   const [cantidadesSeleccionadas, setCantidadesSeleccionadas] = React.useState<
-    Record<number, number>
+    Record<number, number | null>
   >({});
   const [usuarioActivo, setUsuarioActivo] = React.useState<{ id: number; nombre: string } | null>(null);
   const actualizarStockEnEstado = React.useCallback((productoId: number, nuevoStock: number) => {
@@ -378,7 +378,7 @@ export default function Page() {
 
     setCantidadesSeleccionadas((prev) => ({
       ...prev,
-      [producto.id]: 1,
+      [producto.id]: null,
     }));
     return agregado;
   };
@@ -533,8 +533,10 @@ export default function Page() {
         {productosPagina.map((producto) => {
           const stockDisponible = producto.stock;
           const sinStock = stockDisponible <= 0;
-          const cantidadSeleccionada = cantidadesSeleccionadas[producto.id] ?? 1;
-          const cantidadActual = sinStock ? 0 : Math.min(cantidadSeleccionada, stockDisponible);
+          const cantidadSeleccionada = cantidadesSeleccionadas[producto.id];
+          const cantidadActual = sinStock
+            ? 0
+            : Math.min(cantidadSeleccionada ?? 0, stockDisponible);
           const subtotalActual = cantidadActual * producto.precio;
           return (
             <div
@@ -592,10 +594,24 @@ export default function Page() {
                       type="number"
                       min="1"
                       max={Math.max(stockDisponible, 1)}
-                      value={sinStock ? 0 : cantidadActual}
+                      value={
+                        sinStock ? "" : cantidadSeleccionada?.toString() ?? ""
+                      }
                       onChange={(e) => {
-                        const valor = Math.max(1, Number(e.target.value) || 1);
-                        const limite = Math.min(valor, Math.max(stockDisponible, 1));
+                        const valor = e.target.value;
+                        if (valor === "") {
+                          setCantidadesSeleccionadas((prev) => ({
+                            ...prev,
+                            [producto.id]: null,
+                          }));
+                          return;
+                        }
+                        const numero = Number(valor);
+                        if (Number.isNaN(numero)) {
+                          return;
+                        }
+                        const minimo = Math.max(1, numero);
+                        const limite = Math.min(minimo, Math.max(stockDisponible, 1));
                         setCantidadesSeleccionadas((prev) => ({
                           ...prev,
                           [producto.id]: limite,
@@ -605,7 +621,7 @@ export default function Page() {
                       className={`mt-1 w-full rounded border px-3 py-1 ${sinStock ? "bg-gray-100 cursor-not-allowed" : ""}`}
                     />
                   </label>
-                  {!sinStock && cantidadSeleccionada > stockDisponible && (
+                  {!sinStock && (cantidadSeleccionada ?? 0) > stockDisponible && (
                     <p className="text-xs text-red-600">
                       La cantidad no puede superar el stock disponible ({stockDisponible}).
                     </p>

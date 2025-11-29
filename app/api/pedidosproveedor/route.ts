@@ -32,6 +32,7 @@ const toDto = (row: PedidoProveedorRow) => ({
   creadoEn: row.creadoEn?.toISOString() ?? null,
 });
 
+// GET
 export async function GET() {
   try {
     const { rows } = await sql<PedidoProveedorRow>(`${selectQuery} ORDER BY creado_en DESC;`);
@@ -45,6 +46,7 @@ export async function GET() {
   }
 }
 
+// POST
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));

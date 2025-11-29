@@ -42,7 +42,6 @@ export default async function UserPage() {
                 <div className="my-4" />
                 Cada compra está cubierta por nuestra garantía de distribuidora y un equipo de soporte que te ayuda si lo necesitas.
                 Haz tu pedido de forma segura, paga como prefieras y aprovecha la entrega a domicilio con tiempos cortos y seguimiento.
-                Empieza por las secciones destacadas, descubre novedades y arma tu pedido ideal sin complicaciones.
                 <div className="my-5 grid gap-3 sm:grid-cols-2">
                   <Link
                     href="/productos"
@@ -70,8 +69,6 @@ export default async function UserPage() {
           </div>
         </div>
       </div>
-
-
     </section>
   );
 }

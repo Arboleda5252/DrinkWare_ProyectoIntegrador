@@ -26,7 +26,7 @@ export default function Page() {
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition">
             <div className="flex flex-col items-center">
               <p className="font-semibold text-gray-700">Billetera</p>
-              <p className="text-sm text-gray-500">Nequi y Daviplata</p>
+              <p className="text-sm text-gray-500">Nequi</p>
             </div>
           </div>
         </div>

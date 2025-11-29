@@ -16,6 +16,7 @@ type UsuarioListado = {
   activo: boolean;
 };
 
+// GET
 export async function GET() {
   try {
     const { rows } = await sql<UsuarioListado>(`
@@ -42,6 +43,7 @@ export async function GET() {
   }
 }
 
+// POST
 export async function POST(req: NextRequest) {
   let body;
   try {

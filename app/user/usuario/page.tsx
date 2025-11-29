@@ -35,6 +35,7 @@ type UsuarioApiResponseEnvelope = {
   error?: string;
 };
 
+// Campos editables
 const editableFields: Array<keyof Omit<UsuarioFormState, "password">> = [
   "nombre",
   "apellido",
@@ -44,6 +45,7 @@ const editableFields: Array<keyof Omit<UsuarioFormState, "password">> = [
   "direccion",
 ];
 
+// Formulario vacio
 function createEmptyFormData(): UsuarioFormState {
   return {
     nombre: "",
@@ -103,7 +105,8 @@ export default function Page() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
-  const loadUserData = useCallback(async () => {
+  // Datos de usuario
+  const userData = useCallback(async () => {
     setIsLoadingUser(true);
     setLoadError(null);
     try {
@@ -128,7 +131,7 @@ export default function Page() {
       setLoadError(
         error instanceof Error
           ? error.message
-          : "No se pudo cargar la informacion de la cuenta."
+          : "No se pudo ver la informacion de la cuenta."
       );
     } finally {
       setIsLoadingUser(false);
@@ -139,8 +142,8 @@ export default function Page() {
     if (!showAccountModal) {
       return;
     }
-    loadUserData();
-  }, [showAccountModal, loadUserData]);
+    userData();
+  }, [showAccountModal, userData]);
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -240,7 +243,7 @@ export default function Page() {
       <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-4 px-6 py-24 text-center">
         <h1 className="text-3xl font-semibold text-black">Panel de usuario</h1>
         <p className="text-slate-900">
-          Administra tu cuenta y tus metodos de pago desde aqui.
+          Administra tu cuenta desde aqui.
         </p>
 
         <div className="mt-8 flex w-full flex-col gap-3">
@@ -289,7 +292,7 @@ export default function Page() {
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={loadUserData}
+                    onClick={userData}
                     className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
                   >
                     Reintentar
@@ -486,7 +489,7 @@ export default function Page() {
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                   <p className="text-xs text-slate-500">
-                    Deja este campo vacio si no deseas cambiar la contraseña
+                    Campo vacio si no deseas cambiar la contraseña
                   </p>
                 </div>
 

@@ -54,6 +54,7 @@ const toDto = (row: DetallePedidoRow) => ({
   telefonoCliente: row.telefonoCliente,
 });
 
+// GET
 export async function GET(_req: NextRequest, { params }: Params) {
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) {
@@ -75,6 +76,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 }
 
+// PUT
 export async function PUT(req: NextRequest, { params }: Params) {
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) {
@@ -300,6 +302,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 }
 
+// DELETE
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) {
