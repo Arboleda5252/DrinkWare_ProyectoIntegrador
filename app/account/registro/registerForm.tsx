@@ -5,6 +5,13 @@ import * as React from "react";
 export default function RegisterForm() {
   const [loading, setLoading] = React.useState(false);
   const [edadError, setEdadError] = React.useState<string>("");
+  const [documentValue, setDocumentValue] = React.useState("");
+  const [documentError, setDocumentError] = React.useState("");
+  const [documentInfo, setDocumentInfo] = React.useState("");
+  const [documentChecking, setDocumentChecking] = React.useState(false);
+  const [nombre, setNombre] = React.useState("");
+  const [telefono, setTelefono] = React.useState("");
+  const [direccion, setDireccion] = React.useState("");
 
   // Restriccion de fecha
   const d = new Date();
@@ -36,6 +43,76 @@ export default function RegisterForm() {
     input.reportValidity();
   }
 
+  const validarDocumento = React.useCallback(
+    async (autocompletar = true) => {
+      const doc = documentValue.trim();
+      if (!doc) {
+        setDocumentError("");
+        if (autocompletar) {
+          setDocumentInfo("");
+        }
+        return false;
+      }
+
+      setDocumentChecking(true);
+      setDocumentError("");
+      if (autocompletar) {
+        setDocumentInfo("");
+      }
+
+      const normalize = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+      try {
+        const usuariosRes = await fetch("/api/usuarios", { cache: "no-store" });
+        if (!usuariosRes.ok) {
+          throw new Error("No se pudo consultar usuarios");
+        }
+        const usuariosJson = await usuariosRes.json().catch(() => ({}));
+        const usuarios: any[] = Array.isArray(usuariosJson?.data) ? usuariosJson.data : [];
+        const existe = usuarios.some((user) => normalize(user.documento) === doc);
+        if (existe) {
+          setDocumentError("El documento ya está registrado en el sistema.");
+          return false;
+        }
+
+        if (autocompletar) {
+          try {
+            const detalleRes = await fetch("/api/Detallepedido", { cache: "no-store" });
+            if (!detalleRes.ok) {
+              throw new Error("No se pudo consultar el historial de ventas");
+            }
+            const detalleJson = await detalleRes.json().catch(() => ({}));
+            const pedidos: any[] = Array.isArray(detalleJson?.data) ? detalleJson.data : [];
+            const match = pedidos.find((pedido) => normalize(pedido.documento) === doc);
+            if (match) {
+              const nombrePedido = normalize(match.nombreCliente ?? match.nombre_cliente);
+              const telefonoPedido = normalize(match.telefonoCliente ?? match.telefono_cliente);
+              const direccionPedido = normalize(match.direccionCliente ?? match.direccion_cliente);
+              if (nombrePedido) setNombre(nombrePedido);
+              if (telefonoPedido) setTelefono(telefonoPedido);
+              if (direccionPedido) setDireccion(direccionPedido);
+              setDocumentInfo("Datos del cliente completados automáticamente desde una venta anterior.");
+            } else {
+              setDocumentInfo("");
+            }
+          } catch (prefillError) {
+            console.error("[Registro] Prefill detalle pedido", prefillError);
+            setDocumentInfo("");
+          }
+        }
+
+        return true;
+      } catch (error) {
+        console.error("[Registro] Validación de documento", error);
+        setDocumentError("No se pudo validar el documento. Intenta nuevamente.");
+        return false;
+      } finally {
+        setDocumentChecking(false);
+      }
+    },
+    [documentValue]
+  );
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     // Restriccion menor de edad
@@ -46,18 +123,24 @@ export default function RegisterForm() {
 
     const fd = new FormData(e.currentTarget);
 
+    const documentoValido = await validarDocumento(false);
+    if (!documentoValido) {
+      (e.currentTarget.elements.namedItem("documento") as HTMLInputElement | null)?.focus();
+      return;
+    }
+
     const payload = {
-      nombre: String(fd.get("nombre") || ""),
+      nombre: nombre.trim(),
       apellido: String(fd.get("apellido") || ""),
       tipo_documento: String(fd.get("tipo_documento") || ""),
-      documento: String(fd.get("documento") || ""),
+      documento: documentValue.trim(),
       correo: String(fd.get("correo_electronico") || ""),
-      telefono: String(fd.get("telefono") || ""),
+      telefono: telefono.trim(),
       nombreusuario: String(fd.get("nombre_usuario") || ""),
       password: String(fd.get("contrasena") || ""),
       fecha_nacimiento: String(fd.get("fecha_nacimiento") || ""),
       ciudad: String(fd.get("ciudad") || ""),
-      direccion: String(fd.get("direccion") || ""),
+      direccion: direccion.trim(),
       id_rol: 1,
     };
 
@@ -70,9 +153,38 @@ export default function RegisterForm() {
       });
       const json = await res.json();
       if (res.ok && json.ok) {
+        const nuevoIdUsuario = Number(
+          json.id ?? json?.data?.id ?? json?.user?.idusuario ?? json?.user?.id
+        );
+        const documentoNormalizado = documentValue.trim();
+        if (documentoNormalizado && Number.isInteger(nuevoIdUsuario) && nuevoIdUsuario > 0) {
+          try {
+            const adoptarRes = await fetch("/api/Detallepedido/adoptar", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                documento: documentoNormalizado,
+                idUsuario: nuevoIdUsuario,
+              }),
+            });
+            if (!adoptarRes.ok) {
+              const adoptarJson = await adoptarRes.json().catch(() => ({}));
+              console.warn("[Registro] No se pudieron asociar pedidos previos", adoptarJson);
+            }
+          } catch (adoptError) {
+            console.warn("[Registro] Error al asociar pedidos previos", adoptError);
+          }
+        }
+
         alert("Usuario registrado correctamente");
         e.currentTarget.reset();
-        setEdadError(""); 
+        setEdadError("");
+        setDocumentValue("");
+        setDocumentError("");
+        setDocumentInfo("");
+        setNombre("");
+        setTelefono("");
+        setDireccion("");
       } else {
         alert(json.error || "Error al registrar usuario");
       }
@@ -88,35 +200,6 @@ export default function RegisterForm() {
       <h1 className="text-2xl font-bold text-center">Crear cuenta en DrinkWare</h1>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">
-            Nombre
-          </label>
-          <input
-            id="nombre"
-            name="nombre"
-            type="text"
-            required
-            autoComplete="given-name"
-            placeholder="Nombre"
-            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="apellido" className="block text-sm font-medium text-gray-700">
-            Apellido
-          </label>
-          <input
-            id="apellido"
-            name="apellido"
-            type="text"
-            required
-            autoComplete="family-name"
-            placeholder="Apellido"
-            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-          />
-        </div>
 
         <div>
           <label htmlFor="tipo_documento" className="block text-sm font-medium text-gray-700">
@@ -148,6 +231,62 @@ export default function RegisterForm() {
             required
             inputMode="numeric"
             placeholder="Ej 103667890"
+            value={documentValue}
+            onChange={(event) => {
+              setDocumentValue(event.target.value);
+              if (documentError) {
+                setDocumentError("");
+              }
+              if (documentInfo) {
+                setDocumentInfo("");
+              }
+            }}
+            onBlur={() => {
+              void validarDocumento(true);
+            }}
+            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+          {documentChecking && (
+            <p className="mt-1 text-xs text-gray-500">Validando documento...</p>
+          )}
+          {documentError && (
+            <p className="mt-1 text-xs font-semibold text-red-600" role="alert">
+              {documentError}
+            </p>
+          )}
+          {!documentError && documentInfo && (
+            <p className="mt-1 text-xs text-emerald-600">{documentInfo}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">
+            Nombre
+          </label>
+          <input
+            id="nombre"
+            name="nombre"
+            type="text"
+            required
+            autoComplete="given-name"
+            placeholder="Nombre"
+            value={nombre}
+            onChange={(event) => setNombre(event.target.value)}
+            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="apellido" className="block text-sm font-medium text-gray-700">
+            Apellido
+          </label>
+          <input
+            id="apellido"
+            name="apellido"
+            type="text"
+            required
+            autoComplete="family-name"
+            placeholder="Apellido"
             className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
         </div>
@@ -178,6 +317,8 @@ export default function RegisterForm() {
             required
             autoComplete="tel"
             placeholder="+57 300 000 0000"
+            value={telefono}
+            onChange={(event) => setTelefono(event.target.value)}
             className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
         </div>
@@ -267,6 +408,8 @@ export default function RegisterForm() {
             required
             autoComplete="street-address"
             placeholder="Calle 12 #4-67"
+            value={direccion}
+            onChange={(event) => setDireccion(event.target.value)}
             className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
         </div>

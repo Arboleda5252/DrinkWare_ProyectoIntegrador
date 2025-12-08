@@ -29,7 +29,12 @@ type ventas = {
 export default function Page() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerDocument, setCustomerDocument] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
+  const [customerUserId, setCustomerUserId] = useState<number | null>(null);
+  const [documentLookupLoading, setDocumentLookupLoading] = useState(false);
+  const [documentLookupError, setDocumentLookupError] = useState("");
+  const [documentLookupMessage, setDocumentLookupMessage] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState<number | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -151,6 +156,7 @@ export default function Page() {
     setFeedback(null);
     const totalVenta = totalAmount;
     const cliente = customerName;
+    const documentValue = customerDocument.trim();
 
     try {
       for (const item of cartItems) {
@@ -167,19 +173,27 @@ export default function Page() {
           throw new Error("El producto seleccionado no tiene un precio valido.");
         }
 
+        const payload: Record<string, unknown> = {
+          id_producto: numericProductId,
+          cantidad: item.quantity,
+          precioProducto: price,
+          idVendedor: vendedorId,
+          estado: "Confirmado",
+          nombreCliente: customerName,
+          direccionCliente: customerAddress,
+          telefonoCliente: customerPhone,
+        };
+        if (documentValue) {
+          payload.documento = documentValue;
+        }
+        if (customerUserId) {
+          payload.idUsuario = customerUserId;
+        }
+
         const res = await fetch("/api/Detallepedido", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id_producto: numericProductId,
-            cantidad: item.quantity,
-            precioProducto: price,
-            idVendedor: vendedorId,
-            estado: "Confirmado",
-            nombreCliente: customerName,
-            direccionCliente: customerAddress,
-            telefonoCliente: customerPhone,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json().catch(() => ({}));
@@ -192,7 +206,11 @@ export default function Page() {
       setQuantity(null);
       setCustomerName("");
       setCustomerPhone("");
+      setCustomerDocument("");
       setCustomerAddress("");
+      setCustomerUserId(null);
+      setDocumentLookupError("");
+      setDocumentLookupMessage("");
       setFeedback({
         type: "success",
         message: `Venta registrada para ${cliente}. Total: $${totalVenta.toLocaleString("es-CO")}`,
@@ -377,6 +395,112 @@ export default function Page() {
     }
   };
 
+  const buscarClientePorDocumento = useCallback(async () => {
+    const documento = customerDocument.trim();
+    if (!documento) {
+      setCustomerUserId(null);
+      setDocumentLookupError("");
+      setDocumentLookupMessage("");
+      return;
+    }
+
+    setDocumentLookupLoading(true);
+    setDocumentLookupError("");
+    setDocumentLookupMessage("");
+
+    const normalize = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+    try {
+      const usuariosRes = await fetch("/api/usuarios", { cache: "no-store" });
+      if (!usuariosRes.ok) {
+        throw new Error("No se pudo consultar los usuarios");
+      }
+
+      const usuariosJson = await usuariosRes.json().catch(() => ({}));
+      const usuarios: any[] = Array.isArray(usuariosJson?.data) ? usuariosJson.data : [];
+      const usuario = usuarios.find((item) => normalize(item.documento) === documento);
+      if (usuario) {
+        const usuarioId = Number(usuario.id ?? usuario.idusuario);
+        setCustomerUserId(Number.isInteger(usuarioId) && usuarioId > 0 ? usuarioId : null);
+
+        const nombreCompleto = [normalize(usuario.nombre), normalize(usuario.apellido)]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        if (nombreCompleto) {
+          setCustomerName((prev) => (prev ? prev : nombreCompleto));
+        }
+
+        let detallesCompletados = false;
+        if (Number.isInteger(usuarioId) && usuarioId > 0) {
+          try {
+            const detalleRes = await fetch(`/api/usuarios/${usuarioId}`, { cache: "no-store" });
+            if (detalleRes.ok) {
+              const detalleJson = await detalleRes.json().catch(() => ({}));
+              const detalle = detalleJson?.data;
+              if (typeof detalle?.telefono === "string" && detalle.telefono.trim()) {
+                setCustomerPhone((prev) => (prev ? prev : detalle.telefono.trim()));
+                detallesCompletados = true;
+              }
+              if (typeof detalle?.direccion === "string" && detalle.direccion.trim()) {
+                setCustomerAddress((prev) => (prev ? prev : detalle.direccion.trim()));
+                detallesCompletados = true;
+              }
+            }
+          } catch (detError) {
+            console.warn("[Vendedor] No fue posible obtener detalles del usuario", detError);
+          }
+        }
+
+        setDocumentLookupMessage(
+          detallesCompletados
+            ? "Usuario registrado encontrado."
+            : "Cliente registrado encontrado."
+        );
+        return;
+      }
+
+      setCustomerUserId(null);
+
+      try {
+        const pedidosRes = await fetch("/api/Detallepedido", { cache: "no-store" });
+        if (pedidosRes.ok) {
+          const pedidosJson = await pedidosRes.json().catch(() => ({}));
+          const pedidos: any[] = Array.isArray(pedidosJson?.data) ? pedidosJson.data : [];
+          const pedido = pedidos.find((item) => normalize(item.documento) === documento);
+          if (pedido) {
+            const nombrePedido = normalize(pedido.nombreCliente ?? pedido.nombre_cliente);
+            const telefonoPedido = normalize(pedido.telefonoCliente ?? pedido.telefono_cliente);
+            const direccionPedido = normalize(pedido.direccionCliente ?? pedido.direccion_cliente);
+            if (nombrePedido) {
+              setCustomerName((prev) => (prev ? prev : nombrePedido));
+            }
+            if (telefonoPedido) {
+              setCustomerPhone((prev) => (prev ? prev : telefonoPedido));
+            }
+            if (direccionPedido) {
+              setCustomerAddress((prev) => (prev ? prev : direccionPedido));
+            }
+            setDocumentLookupMessage(
+              "Cliente no registrado en el sistema. Datos recuperados de historial de compras"
+            );
+            return;
+          }
+        }
+      } catch (pedidoError) {
+        console.warn("[Vendedor] No fue posible consultar pedidos para autocompletar", pedidoError);
+      }
+
+      setDocumentLookupMessage("Documento no registrado");
+    } catch (error) {
+      console.error("[Vendedor] Error buscando documento", error);
+      setCustomerUserId(null);
+      setDocumentLookupError("No se pudo validar el documento. Intenta de nuevo.");
+    } finally {
+      setDocumentLookupLoading(false);
+    }
+  }, [customerDocument]);
+
   return (
     <section className="w-full bg-slate-50 py-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 rounded-2xl bg-white p-8 shadow-lg">
@@ -411,6 +535,41 @@ export default function Page() {
           <div className="rounded-xl border border-slate-100 p-6">
             <h2 className="mb-4 text-lg font-semibold text-slate-700">Datos del cliente</h2>
             <div className="space-y-4">
+
+              <label className="flex flex-col text-sm font-medium text-slate-600">
+                Documento
+                <input
+                  type="text"
+                  value={customerDocument}
+                  onChange={(event) => {
+                    setCustomerDocument(event.target.value);
+                    if (documentLookupError) {
+                      setDocumentLookupError("");
+                    }
+                    if (documentLookupMessage) {
+                      setDocumentLookupMessage("");
+                    }
+                    setCustomerUserId(null);
+                  }}
+                  onBlur={() => {
+                    void buscarClientePorDocumento();
+                  }}
+                  placeholder="Documento del cliente"
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
+                />
+                {documentLookupLoading && (
+                  <span className="mt-1 text-xs text-slate-500">Buscando documento…</span>
+                )}
+                {documentLookupError && (
+                  <span className="mt-1 text-xs text-rose-600">{documentLookupError}</span>
+                )}
+                {!documentLookupError && documentLookupMessage && (
+                  <span className="mt-1 text-xs text-emerald-600">
+                    {documentLookupMessage}
+                  </span>
+                )}
+              </label>
+
               <label className="flex flex-col text-sm font-medium text-slate-600">
                 Nombre completo
                 <input

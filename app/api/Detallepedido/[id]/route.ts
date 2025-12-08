@@ -18,6 +18,7 @@ type DetallePedidoRow = {
   nombreCliente: string | null;
   direccionCliente: string | null;
   telefonoCliente: string | null;
+  documento: string | null;
 };
 
 const baseSelect = `
@@ -33,7 +34,8 @@ const baseSelect = `
     estado,
     nombre_cliente AS "nombreCliente",
     direccion_cliente AS "direccionCliente",
-    telefono_cliente AS "telefonoCliente"
+    telefono_cliente AS "telefonoCliente",
+    documento
   FROM public.detallepedido
 `;
 
@@ -52,6 +54,7 @@ const toDto = (row: DetallePedidoRow) => ({
   nombreCliente: row.nombreCliente,
   direccionCliente: row.direccionCliente,
   telefonoCliente: row.telefonoCliente,
+  documento: row.documento,
 });
 
 // GET
@@ -256,6 +259,20 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
   }
 
+  const documentoInput = body?.documento ?? body?.documentoCliente ?? body?.documento_cliente;
+  if (documentoInput !== undefined) {
+    if (documentoInput === null) {
+      addUpdate("documento", null);
+    } else if (typeof documentoInput === "string" && documentoInput.trim().length > 0) {
+      addUpdate("documento", documentoInput.trim());
+    } else {
+      return NextResponse.json(
+        { ok: false, error: "documento debe ser un texto no vacio o null" },
+        { status: 400 }
+      );
+    }
+  }
+
   if (updates.length === 0) {
     return NextResponse.json(
       { ok: false, error: "No hay campos validos para actualizar" },
@@ -283,7 +300,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
           estado,
           nombre_cliente AS "nombreCliente",
           direccion_cliente AS "direccionCliente",
-          telefono_cliente AS "telefonoCliente";
+          telefono_cliente AS "telefonoCliente",
+          documento;
       `,
       values
     );
