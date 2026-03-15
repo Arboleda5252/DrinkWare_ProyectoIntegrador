@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 type CartItem = {
   productId: string;
   quantity: number;
@@ -35,6 +34,7 @@ export default function Page() {
   const [documentLookupLoading, setDocumentLookupLoading] = useState(false);
   const [documentLookupError, setDocumentLookupError] = useState("");
   const [documentLookupMessage, setDocumentLookupMessage] = useState("");
+  const [customerHasDocument, setCustomerHasDocument] = useState(true);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState<number | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -44,6 +44,8 @@ export default function Page() {
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState("");
   const [inventorySearch, setInventorySearch] = useState("");
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
   const [ventasRecords, setventasRecords] = useState<ventas[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState("");
@@ -52,6 +54,8 @@ export default function Page() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [vendedorId, setVendedorId] = useState<number | null>(null);
   const [vendedorError, setVendedorError] = useState("");
+  const productSearchRef = useRef<HTMLDivElement | null>(null);
+  const productInputRef = useRef<HTMLInputElement | null>(null);
 
   // Producto seleccionado
   const seleccionarProducto = useMemo(() => {
@@ -107,6 +111,64 @@ export default function Page() {
     [inventorioProductos]
   );
 
+  const handleDocumentModeChange = useCallback(
+    (hasDocument: boolean) => {
+      setCustomerHasDocument(hasDocument);
+      if (!hasDocument) {
+        setCustomerDocument("");
+        setCustomerUserId(null);
+        setDocumentLookupError("");
+        setDocumentLookupMessage("");
+      }
+    }, []);
+
+  const formatProductLabel = useCallback((product: InventorioProducto) => {
+    const price = product.price ?? 0;
+    return `${product.name} - $${price.toLocaleString("es-CO")}`;
+  }, []);
+
+  const selectedProductLabel = useMemo(() => {
+    return seleccionarProducto ? formatProductLabel(seleccionarProducto) : "";
+  }, [seleccionarProducto, formatProductLabel]);
+
+  const { productSearchResults, productSearchHasMore } = useMemo(() => {
+    if (!inventorioProductos.length) {
+      return { productSearchResults: [] as InventorioProducto[], productSearchHasMore: false };
+    }
+    const term = productSearchTerm.trim().toLowerCase();
+    const filtered = term
+      ? inventorioProductos.filter((product) => {
+        const name = (product.name ?? "").toLowerCase();
+        const description = (product.description ?? "").toLowerCase();
+        return name.includes(term) || description.includes(term);
+      }) : inventorioProductos;
+    const limited = filtered.slice(0, 8);
+    return {
+      productSearchResults: limited,
+      productSearchHasMore: filtered.length > limited.length,
+    };
+  }, [inventorioProductos, productSearchTerm]);
+
+  const handleProductSelection = useCallback(
+    (product: InventorioProducto) => {
+      if (!product?.id) {
+        return;
+      }
+      setSelectedProductId(product.id);
+      setProductSearchTerm("");
+      setShowProductSuggestions(false);
+      setStockError("");
+      setQuantity(null);
+    }, []);
+
+  const clearProductSelection = useCallback(() => {
+    setSelectedProductId("");
+    setProductSearchTerm("");
+    setShowProductSuggestions(false);
+    setStockError("");
+    setQuantity(null);
+  }, []);
+
   // Agregar producto al carrito
   const AddProduct = () => {
     if (
@@ -133,6 +195,30 @@ export default function Page() {
     setQuantity(null);
     setFeedback(null);
   };
+
+  const ajustarStockProducto = useCallback(
+    async (
+      productoId: number,
+      cantidad: number,
+      operacion: "disminuir" | "incrementar" = "disminuir"
+    ) => {
+      const response = await fetch(`/api/productos/${productoId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accion: "ajustar_stock",
+          cantidad,
+          operacion,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) {
+        throw new Error(
+          data?.error ?? "No fue posible actualizar el stock del producto."
+        );
+      }
+      return data?.data;
+    }, []);
 
   // Registrar venta
   const RegistrarVenta = async () => {
@@ -166,7 +252,7 @@ export default function Page() {
         }
         const numericProductId = Number(product.id);
         if (!Number.isInteger(numericProductId) || numericProductId <= 0) {
-          throw new Error("El producto seleccionado no tiene un identificador válido.");
+          throw new Error("El producto seleccionado no tiene un identificador valido.");
         }
         const price = Number(product.price ?? 0);
         if (!Number.isFinite(price) || price < 0) {
@@ -189,19 +275,35 @@ export default function Page() {
         if (customerUserId) {
           payload.idUsuario = customerUserId;
         }
-
-        const res = await fetch("/api/Detallepedido", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data?.ok) {
-          throw new Error(data?.error ?? "No fue posible registrar la venta.");
+        let stockReducido = false;
+        try {
+          await ajustarStockProducto(numericProductId, item.quantity, "disminuir");
+          stockReducido = true;
+          const res = await fetch("/api/Detallepedido", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data?.ok) {
+            throw new Error(data?.error ?? "No fue posible registrar la venta.");
+          }
+        } catch (detalleError) {
+          if (stockReducido) {
+            await ajustarStockProducto(numericProductId, item.quantity, "incrementar").catch(
+              (rollbackError) => {
+                console.error(
+                  "[Vendedor] No fue posible revertir el stock tras una falla al registrar el detalle",
+                  rollbackError
+                );
+              }
+            );
+          }
+          throw detalleError instanceof Error
+            ? detalleError
+            : new Error("No fue posible completar el registro de la venta.");
         }
       }
-
       setCartItems([]);
       setQuantity(null);
       setCustomerName("");
@@ -220,7 +322,7 @@ export default function Page() {
       setFeedback({
         type: "error",
         message:
-          error instanceof Error ? error.message : "Ocurrió un error inesperado al registrar la venta.",
+          error instanceof Error ? error.message : "Error inesperado al registrar la venta.",
       });
     } finally {
       setRegistering(false);
@@ -238,13 +340,14 @@ export default function Page() {
       }
 
       const payload = await response.json();
+
       const rawProducts: any[] = Array.isArray(payload?.data)
         ? payload.data
         : Array.isArray(payload?.productos)
-        ? payload.productos
-        : Array.isArray(payload)
-        ? payload
-        : [];
+          ? payload.productos
+          : Array.isArray(payload)
+            ? payload
+            : [];
 
       const parsed: InventorioProducto[] = rawProducts
         .filter((product) => (product?.estados ?? "Disponible") === "Disponible")
@@ -260,7 +363,7 @@ export default function Page() {
     } catch (error) {
       if ((error as Error).name === "AbortError") return;
       setInventoryError(
-        (error as Error).message || "Ocurrió un error cargando el inventario. Intenta de nuevo."
+        (error as Error).message || "Error cargando el inventario. Intenta de nuevo."
       );
     } finally {
       setInventoryLoading(false);
@@ -273,6 +376,24 @@ export default function Page() {
     fetchInventoryProducts(controller.signal);
     return () => controller.abort();
   }, [fetchInventoryProducts]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (productSearchRef.current && !productSearchRef.current.contains(event.target as Node)) {
+        setShowProductSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (inventoryLoading) {
+      setShowProductSuggestions(false);
+    }
+  }, [inventoryLoading]);
 
   // Obtener ID de vendedor activo
   useEffect(() => {
@@ -303,7 +424,7 @@ export default function Page() {
   const fetchSalesRecords = useCallback(
     async (signal?: AbortSignal) => {
       if (!vendedorId) {
-        setSalesError("Debes iniciar sesión como vendedor para ver tus ventas.");
+        setSalesError("Debes iniciar sesion como vendedor para ver tus ventas.");
         return;
       }
       try {
@@ -329,8 +450,8 @@ export default function Page() {
               typeof item.nombreCliente === "string"
                 ? item.nombreCliente
                 : typeof item.nombre_cliente === "string"
-                ? item.nombre_cliente
-                : null,
+                  ? item.nombre_cliente
+                  : null,
           }));
         setventasRecords(records);
       } catch (error) {
@@ -351,8 +472,12 @@ export default function Page() {
   }, [showInventoryModal]);
 
   useEffect(() => {
-    if (!selectedProductId && inventorioProductos.length > 0) {
-      setSelectedProductId(inventorioProductos[0].id ?? "");
+    if (!selectedProductId) {
+      return;
+    }
+    const exists = inventorioProductos.some((product) => product.id === selectedProductId);
+    if (!exists) {
+      setSelectedProductId("");
     }
   }, [inventorioProductos, selectedProductId]);
 
@@ -373,7 +498,7 @@ export default function Page() {
       const remaining = Math.max(availableStock - alreadyAdded, 0);
       setStockError(
         remaining > 0
-          ? `La cantidad excede el stock disponible. Solo puedes agregar ${remaining} unidad(es) más.`
+          ? `La cantidad excede el stock disponible. Solo puedes agregar ${remaining} unidad(es) mas.`
           : "Ya has utilizado todo el stock disponible en este pedido."
       );
       return;
@@ -395,7 +520,8 @@ export default function Page() {
     }
   };
 
-  const buscarClientePorDocumento = useCallback(async () => {
+  const buscarClientePorDocumento = useCallback(async () => { if (!customerHasDocument) { return;}
+  
     const documento = customerDocument.trim();
     if (!documento) {
       setCustomerUserId(null);
@@ -499,8 +625,7 @@ export default function Page() {
     } finally {
       setDocumentLookupLoading(false);
     }
-  }, [customerDocument]);
-
+  }, [customerDocument, customerHasDocument]);
   return (
     <section className="w-full bg-slate-50 py-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 rounded-2xl bg-white p-8 shadow-lg">
@@ -535,7 +660,28 @@ export default function Page() {
           <div className="rounded-xl border border-slate-100 p-6">
             <h2 className="mb-4 text-lg font-semibold text-slate-700">Datos del cliente</h2>
             <div className="space-y-4">
-
+              <div className="flex flex-wrap gap-4 text-sm font-medium text-slate-600">
+                <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1">
+                  <input
+                    type="radio"
+                    name="document-mode"
+                    className="h-4 w-4 accent-emerald-600"
+                    checked={customerHasDocument}
+                    onChange={() => handleDocumentModeChange(true)}
+                  />
+                  Con documento
+                </label>
+                <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1">
+                  <input
+                    type="radio"
+                    name="document-mode"
+                    className="h-4 w-4 accent-emerald-600"
+                    checked={!customerHasDocument}
+                    onChange={() => handleDocumentModeChange(false)}
+                  />
+                  Venta rapida
+                </label>
+              </div>
               <label className="flex flex-col text-sm font-medium text-slate-600">
                 Documento
                 <input
@@ -552,20 +698,34 @@ export default function Page() {
                     setCustomerUserId(null);
                   }}
                   onBlur={() => {
-                    void buscarClientePorDocumento();
+                    if (customerHasDocument) {
+                      void buscarClientePorDocumento();
+                    }
                   }}
-                  placeholder="Documento del cliente"
-                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
+                  placeholder={
+                    customerHasDocument ? "Documento del cliente" : "Documento no requerido"
+                  }
+                  disabled={!customerHasDocument}
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
-                {documentLookupLoading && (
-                  <span className="mt-1 text-xs text-slate-500">Buscando documento…</span>
-                )}
-                {documentLookupError && (
-                  <span className="mt-1 text-xs text-rose-600">{documentLookupError}</span>
-                )}
-                {!documentLookupError && documentLookupMessage && (
-                  <span className="mt-1 text-xs text-emerald-600">
-                    {documentLookupMessage}
+
+                {customerHasDocument ? (
+                  <>
+                    {documentLookupLoading && (
+                      <span className="mt-1 text-xs text-slate-500">Buscando documento...</span>
+                    )}
+                    {documentLookupError && (
+                      <span className="mt-1 text-xs text-rose-600">{documentLookupError}</span>
+                    )}
+                    {!documentLookupError && documentLookupMessage && (
+                      <span className="mt-1 text-xs text-emerald-600">
+                        {documentLookupMessage}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="mt-1 text-xs text-slate-500">
+                    Registraremos esta venta
                   </span>
                 )}
               </label>
@@ -582,7 +742,7 @@ export default function Page() {
               </label>
 
               <label className="flex flex-col text-sm font-medium text-slate-600">
-                Teléfono
+                Telefono
                 <input
                   type="tel"
                   value={customerPhone}
@@ -608,29 +768,124 @@ export default function Page() {
             <h2 className="mb-4 text-lg font-semibold text-slate-700">Agregar productos</h2>
             <div className="space-y-4">
               <label className="flex flex-col text-sm font-medium text-slate-600">
-                Selecciona un producto
-                <select
-                  value={selectedProductId}
-                  onChange={(event) => setSelectedProductId(event.target.value)}
-                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
-                  disabled={inventoryLoading || inventorioProductos.length === 0}
-                >
-                  {inventorioProductos.length === 0 ? (
-                    <option value="">
-                      {inventoryLoading ? "Cargando inventario..." : "Sin productos disponibles"}
-                    </option>
-                  ) : (
-                    inventorioProductos.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name} - $
-                        {product.price?.toLocaleString("es-CO") ?? "0"}
-                      </option>
-                    ))
+                Busca y selecciona un producto
+                <div ref={productSearchRef} className="relative mt-1">
+                  <input
+                    type="text"
+                    ref={productInputRef}
+                    value={productSearchTerm}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setProductSearchTerm(value);
+                      setShowProductSuggestions(true);
+                      if (selectedProductId) {
+                        setSelectedProductId("");
+                      }
+                    }}
+                    onFocus={() => {
+                      if (!inventoryLoading && inventorioProductos.length > 0) {
+                        setShowProductSuggestions(true);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && productSearchResults.length > 0) {
+                        event.preventDefault();
+                        handleProductSelection(productSearchResults[0]);
+                      }
+                      if (event.key === "Escape") {
+                        setShowProductSuggestions(false);
+                      }
+                    }}
+                    placeholder={
+                      inventoryLoading
+                        ? "Cargando inventario..."
+                        : inventorioProductos.length === 0
+                          ? "Sin productos disponibles"
+                          : ""
+                    }
+                    disabled={inventoryLoading || inventorioProductos.length === 0}
+                    className="w-full rounded-lg border border-slate-200 px-3 pr-10 py-2 text-base text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                  />
+
+                  {!productSearchTerm && (
+                    <span className="pointer-events-none absolute inset-y-0 left-3 right-10 flex items-center truncate text-sm text-slate-500">
+                      {selectedProductId && selectedProductLabel
+                        ? selectedProductLabel
+                        : "Buscar"}
+                    </span>
                   )}
-                </select>
-                {inventoryError && inventorioProductos.length === 0 && (
+
+                  {(productSearchTerm || selectedProductId) && (
+                    <button
+                      type="button"
+                      aria-label="Limpiar selección o búsqueda"
+                      onClick={() => {
+                        clearProductSelection();
+                        if (!inventoryLoading && inventorioProductos.length > 0) {
+                          setShowProductSuggestions(true);
+                        }
+                        productInputRef.current?.focus();
+                      }}
+                      className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-500 transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                    >
+                      x
+                    </button>
+                  )}
+
+                  {showProductSuggestions && inventorioProductos.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                      {inventoryLoading ? (
+                        <p className="px-4 py-3 text-sm text-slate-500">Cargando inventario...</p>
+                      ) : productSearchResults.length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-slate-500">
+                          No se encontraron productos para esa búsqueda.
+                        </p>
+                      ) : (
+                        <ul className="divide-y divide-slate-100">
+                          {productSearchResults.map((product) => {
+                            const isActive = product.id === selectedProductId;
+                            return (
+                              <li key={product.id ?? product.name}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleProductSelection(product)}
+                                  className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition ${isActive ? "bg-slate-50" : "hover:bg-slate-50"
+                                    }`}
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate font-semibold text-slate-800">
+                                      {product.name}
+                                    </p>
+                                    <p className="truncate text-xs text-slate-500">
+                                      Disponible: {product.stock ?? 0} Â·{" "}
+                                      {product.description?.trim() || "Sin descripción"}
+                                    </p>
+                                  </div>
+                                  <span className="text-sm font-bold text-slate-900">
+                                    {"$" + (product.price ?? 0).toLocaleString("es-CO")}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                          {productSearchHasMore && (
+                            <li className="px-4 py-2 text-center text-[11px] uppercase tracking-wide text-slate-400">
+                              Resultados limitados
+                            </li>
+                          )}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {inventoryError && inventorioProductos.length === 0 ? (
                   <span className="mt-1 text-xs text-rose-600">{inventoryError}</span>
-                )}
+                ) : inventorioProductos.length > 0 ? (
+                  <span className="mt-1 text-xs text-slate-500">
+                    Seguir escribiendo para cambiar el producto seleccionado.
+                  </span>
+                ) : null}
               </label>
 
               <label className="flex flex-col text-sm font-medium text-slate-600">
@@ -652,15 +907,13 @@ export default function Page() {
                 />
                 {seleccionarProducto && (
                   <span
-                    className={`mt-1 text-xs ${
-                      stockError ? "text-rose-600" : "text-slate-500"
-                    }`}
+                    className={`mt-1 text-xs ${stockError ? "text-rose-600" : "text-slate-500"
+                      }`}
                   >
                     {stockError
                       ? stockError
-                      : `Disponible: ${
-                          (seleccionarProducto.stock ?? 0) - seleccionarProductoCart
-                        } unidad(es) libres.`}
+                      : `Disponible: ${(seleccionarProducto.stock ?? 0) - seleccionarProductoCart
+                      } unidad(es) libres.`}
                   </span>
                 )}
               </label>
@@ -673,6 +926,7 @@ export default function Page() {
               >
                 Añadir al pedido
               </button>
+
             </div>
           </div>
         </div>
@@ -680,7 +934,7 @@ export default function Page() {
         <div className="rounded-xl border border-slate-100 p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-700">Productos seleccionados</h2>
-            
+
           </div>
 
           {cartItems.length === 0 ? (
@@ -735,11 +989,10 @@ export default function Page() {
 
           {feedback && (
             <p
-              className={`mt-3 rounded-lg border px-4 py-3 text-sm ${
-                feedback.type === "success"
-                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                  : "border-rose-100 bg-rose-50 text-rose-700"
-              }`}
+              className={`mt-3 rounded-lg border px-4 py-3 text-sm ${feedback.type === "success"
+                ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                : "border-rose-100 bg-rose-50 text-rose-700"
+                }`}
             >
               {feedback.message}
             </p>
@@ -763,7 +1016,7 @@ export default function Page() {
                 onClick={() => setShowInventoryModal(false)}
                 className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-900"
               >
-                ✕
+                X
               </button>
             </div>
 
@@ -839,14 +1092,14 @@ export default function Page() {
             <div className="flex items-start justify-between gap-4 border-b pb-4">
               <div>
                 <h3 className="text-2xl font-bold text-slate-900">Ventas registradas</h3>
-               </div>
+              </div>
               <button
                 type="button"
                 aria-label="Cerrar ventas"
                 onClick={() => setShowSalesModal(false)}
                 className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-900"
               >
-                ✕
+                X
               </button>
             </div>
 

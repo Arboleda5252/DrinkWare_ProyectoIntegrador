@@ -71,7 +71,7 @@ export default function RegisterForm() {
         const usuarios: any[] = Array.isArray(usuariosJson?.data) ? usuariosJson.data : [];
         const existe = usuarios.some((user) => normalize(user.documento) === doc);
         if (existe) {
-          setDocumentError("El documento ya está registrado en el sistema.");
+          setDocumentError("El documento ya está registrado");
           return false;
         }
 
@@ -91,7 +91,7 @@ export default function RegisterForm() {
               if (nombrePedido) setNombre(nombrePedido);
               if (telefonoPedido) setTelefono(telefonoPedido);
               if (direccionPedido) setDireccion(direccionPedido);
-              setDocumentInfo("Datos del cliente completados automáticamente desde una venta anterior.");
+              setDocumentInfo("Datos del cliente completados desde una venta anterior.");
             } else {
               setDocumentInfo("");
             }
