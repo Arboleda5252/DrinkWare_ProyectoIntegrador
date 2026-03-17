@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/app/libs/database";
+import { getUserFromSession } from "@/app/libs/auth";
 import { DatabaseError } from "pg";
 
 export const runtime = "nodejs";
@@ -38,6 +39,37 @@ const baseSelect = `
   FROM public.detallepedido
 `;
 
+async function ensureVendedorActivo(id: number) {
+  const { rows } = await sql<{ activo: boolean | null }>(
+    `
+      SELECT u.activo
+      FROM public.usuario AS u
+      WHERE u.idusuario = $1
+      LIMIT 1;
+    `,
+    [id]
+  );
+
+  if (!rows[0]) {
+    return { ok: false as const, error: "El usuario vendedor no existe." };
+  }
+
+  if (!rows[0].activo) {
+    return { ok: false as const, error: "El usuario vendedor no esta activo." };
+  }
+
+  await sql(
+    `
+      INSERT INTO public.vendedor (idvendedor, estado, fechaingreso)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (idvendedor) DO NOTHING;
+    `,
+    [id, true]
+  );
+
+  return { ok: true as const };
+}
+
 const toDto = (row: DetallePedidoRow) => ({
   id: row.id,
   productoId: row.productoId,
@@ -72,6 +104,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
+    const sessionUser = await getUserFromSession();
 
     const productoId = Number(
       body?.productoId ?? body?.id_producto ?? body?.idProducto ?? body?.idproducto
@@ -126,22 +159,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const vendedorInput =
-      body?.idVendedor ?? body?.idvendedor ?? body?.id_vendedor ?? body?.vendedorId ?? body?.vendedor_id;
-    if (vendedorInput !== undefined) {
-      if (vendedorInput === null) {
-        addColumn("idvendedor", null);
-      } else {
-        const idVendedor = Number(vendedorInput);
-        if (!Number.isInteger(idVendedor) || idVendedor <= 0) {
-          return NextResponse.json(
-            { ok: false, error: "idvendedor debe ser un entero positivo o null" },
-            { status: 400 }
-          );
-        }
-        addColumn("idvendedor", idVendedor);
-      }
+    if (!sessionUser?.idusuario) {
+      return NextResponse.json(
+        { ok: false, error: "No hay un vendedor activo en la sesion." },
+        { status: 401 }
+      );
     }
+
+    const vendedorResult = await ensureVendedorActivo(sessionUser.idusuario);
+    if (!vendedorResult.ok) {
+      return NextResponse.json(
+        { ok: false, error: vendedorResult.error },
+        { status: 400 }
+      );
+    }
+    addColumn("idvendedor", sessionUser.idusuario);
 
     const fechaPagoInput = body?.fechaPago ?? body?.fechapago ?? body?.fecha_pago;
     if (fechaPagoInput !== undefined) {
@@ -273,6 +305,19 @@ const connectionErrorCodes = new Set(["ECONNREFUSED", "ENOTFOUND", "ECONNRESET",
 function mapDetallePedidoError(error: unknown) {
   if (error instanceof DatabaseError) {
     if (error.code === "23503") {
+      const constraint = error.constraint ?? "";
+      if (constraint.includes("idvendedor")) {
+        return {
+          status: 400,
+          message: "El vendedor asociado no existe en la base de datos",
+        };
+      }
+      if (constraint.includes("idusuario")) {
+        return {
+          status: 400,
+          message: "El usuario asociado no existe en la base de datos",
+        };
+      }
       return {
         status: 400,
         message: "El producto asociado no existe en la base de datos",

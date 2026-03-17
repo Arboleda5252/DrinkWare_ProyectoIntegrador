@@ -857,7 +857,7 @@ export default function Page() {
                                       {product.name}
                                     </p>
                                     <p className="truncate text-xs text-slate-500">
-                                      Disponible: {product.stock ?? 0} Â·{" "}
+                                      Disponible: {product.stock ?? 0} - {" "}
                                       {product.description?.trim() || "Sin descripción"}
                                     </p>
                                   </div>
@@ -968,19 +968,137 @@ export default function Page() {
             </div>
           )}
 
-          <div className="mt-6 flex flex-col gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-semibold text-slate-700">Total</p>
-              <p className="text-2xl font-bold text-slate-900">${totalAmount.toLocaleString("es-CO")}</p>
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600">
+            <div className="grid gap-5 xl:grid-cols-[1.2fr_0.9fr]">
+              <div className="space-y-5">
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        Configuracion de entrega
+                      </p>
+                      <h3 className="mt-1 text-base font-semibold text-slate-800">
+                        Define como se despacha este pedido
+                      </h3>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm">
+                      Solo diseno
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <label className="group cursor-pointer rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100/70">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          name="tipoEntregaPreview"
+                          defaultChecked
+                          className="mt-1 h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div>
+                          <p className="font-semibold text-emerald-900">Domicilio</p>
+                          <p className="mt-1 text-xs leading-5 text-emerald-800/80">
+                            Entrega con asignacion de domiciliario y costo de envio.
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50/60">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          name="tipoEntregaPreview"
+                          className="mt-1 h-4 w-4 border-slate-300 text-sky-600 focus:ring-sky-500"
+                        />
+                        <div>
+                          <p className="font-semibold text-slate-800">Retiro en tienda</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            El cliente recoge el pedido directamente en el punto de venta.
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="flex flex-col text-sm font-medium text-slate-600">
+                    Domiciliario
+                    <select
+                      defaultValue=""
+                      className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                    >
+                      <option value="" disabled>
+                        Selecciona un domiciliario
+                      </option>
+                      <option value="dom-1">Domiciliario 1</option>
+                      <option value="dom-2">Domiciliario 2</option>
+                      <option value="dom-3">Domiciliario 3</option>
+                    </select>
+                    <span className="mt-2 text-xs text-slate-400">
+                      Vista previa del selector. Luego se llenara con datos reales.
+                    </span>
+                  </label>
+
+                  <label className="flex flex-col text-sm font-medium text-slate-600">
+                    Tipo de pago
+                    <select
+                      defaultValue=""
+                      className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                    >
+                      <option value="" disabled>
+                        Selecciona una forma de pago
+                      </option>
+                      <option value="efectivo">Efectivo</option>
+                      <option value="transferencia">Transferencia</option>
+                      <option value="tarjeta">Tarjeta</option>
+                      <option value="contraentrega">Contra entrega</option>
+                    </select>
+                    <span className="mt-2 text-xs text-slate-400">
+                      Campo visual para conectar despues con la logica del pedido.
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex h-full flex-col justify-between rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Resumen final
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                      <span className="text-slate-500">Subtotal productos</span>
+                      <span className="font-semibold text-slate-800">
+                        ${totalAmount.toLocaleString("es-CO")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-dashed border-slate-200 px-4 py-3 text-slate-400">
+                      <span>Costo envio</span>
+                      <span>Pendiente</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 border-t border-slate-100 pt-5">
+                  <div>
+                    <p className="font-semibold text-slate-700">Total</p>
+                    <p className="text-3xl font-bold tracking-tight text-slate-950">
+                      ${totalAmount.toLocaleString("es-CO")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={RegistrarVenta}
+                    disabled={registering}
+                    className="mt-4 w-full rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                  >
+                    {registering ? "Registrando..." : "Registrar venta"}
+                  </button>
+                </div>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={RegistrarVenta}
-              disabled={registering}
-              className="rounded-lg bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-300"
-            >
-              {registering ? "Registrando..." : "Registrar venta"}
-            </button>
           </div>
 
           {vendedorError && (
