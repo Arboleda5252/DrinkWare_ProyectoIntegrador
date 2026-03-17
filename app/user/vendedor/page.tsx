@@ -241,10 +241,39 @@ export default function Page() {
     setRegistering(true);
     setFeedback(null);
     const totalVenta = totalAmount;
-    const cliente = customerName;
-    const documentValue = customerDocument.trim();
+    const customerNameValue = customerName.trim();
+    const customerPhoneValue = customerPhone.trim();
+    const customerAddressValue = customerAddress.trim();
+    const cliente = customerNameValue;
+    const detallesRegistrados: Array<{ productId: number; quantity: number }> = [];
 
     try {
+      const pedidoPayload: Record<string, unknown> = {
+        subtotal: Number(totalVenta),
+        costoEnvio: 0,
+        tipoEntrega: "Domicilio",
+        estadoPedido: "Pendiente",
+      };
+
+      if (Number.isInteger(customerUserId) && customerUserId !== null && customerUserId > 0) {
+        pedidoPayload.idCliente = Number(customerUserId);
+      }
+
+      const pedidoRes = await fetch("/api/pedidos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pedidoPayload),
+      });
+      const pedidoData = await pedidoRes.json().catch(() => ({}));
+      if (!pedidoRes.ok || !pedidoData?.ok) {
+        throw new Error(pedidoData?.error ?? "No fue posible crear el pedido.");
+      }
+
+      const pedidoId = Number(pedidoData?.data?.idPedido);
+      if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+        throw new Error("La API de pedidos no devolvio un id_pedido valido.");
+      }
+
       for (const item of cartItems) {
         const product = inventorioProductos.find((prod) => prod.id === item.productId);
         if (!product) {
@@ -254,46 +283,42 @@ export default function Page() {
         if (!Number.isInteger(numericProductId) || numericProductId <= 0) {
           throw new Error("El producto seleccionado no tiene un identificador valido.");
         }
+        const cantidad = Number(item.quantity);
+        if (!Number.isInteger(cantidad) || cantidad <= 0) {
+          throw new Error("La cantidad del producto no es valida.");
+        }
         const price = Number(product.price ?? 0);
         if (!Number.isFinite(price) || price < 0) {
           throw new Error("El producto seleccionado no tiene un precio valido.");
         }
 
-        const payload: Record<string, unknown> = {
-          id_producto: numericProductId,
-          cantidad: item.quantity,
-          precioProducto: price,
-          idVendedor: vendedorId,
-          estado: "Confirmado",
-          nombreCliente: customerName,
-          direccionCliente: customerAddress,
-          telefonoCliente: customerPhone,
+        const detallePayload: Record<string, unknown> = {
+          idPedido: Number(pedidoId),
+          idProducto: Number(numericProductId),
+          cantidad: Number(cantidad),
+          precioUnitario: Number(price),
         };
-        if (documentValue) {
-          payload.documento = documentValue;
-        }
-        if (customerUserId) {
-          payload.idUsuario = customerUserId;
-        }
+
         let stockReducido = false;
         try {
-          await ajustarStockProducto(numericProductId, item.quantity, "disminuir");
+          await ajustarStockProducto(numericProductId, cantidad, "disminuir");
           stockReducido = true;
-          const res = await fetch("/api/Detallepedido", {
+          const res = await fetch("/api/detalle_pedido", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(detallePayload),
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data?.ok) {
-            throw new Error(data?.error ?? "No fue posible registrar la venta.");
+            throw new Error(data?.error ?? "No fue posible registrar el detalle del pedido.");
           }
+          detallesRegistrados.push({ productId: numericProductId, quantity: cantidad });
         } catch (detalleError) {
           if (stockReducido) {
-            await ajustarStockProducto(numericProductId, item.quantity, "incrementar").catch(
+            await ajustarStockProducto(numericProductId, cantidad, "incrementar").catch(
               (rollbackError) => {
                 console.error(
-                  "[Vendedor] No fue posible revertir el stock tras una falla al registrar el detalle",
+                  "[Vendedor] No fue posible revertir el stock tras una falla al registrar detalle_pedido",
                   rollbackError
                 );
               }
@@ -301,9 +326,29 @@ export default function Page() {
           }
           throw detalleError instanceof Error
             ? detalleError
-            : new Error("No fue posible completar el registro de la venta.");
+            : new Error("No fue posible completar el registro del detalle del pedido.");
         }
       }
+
+      const entregaPayload: Record<string, unknown> = {
+        idPedido: Number(pedidoId),
+        direccionEntrega: customerAddressValue,
+        telefonoContacto: customerPhoneValue,
+        nombreRecibe: customerNameValue,
+        costoEnvio: 0,
+        estadoEntrega: "Pendiente",
+      };
+
+      const entregaRes = await fetch("/api/entrega", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entregaPayload),
+      });
+      const entregaData = await entregaRes.json().catch(() => ({}));
+      if (!entregaRes.ok || !entregaData?.ok) {
+        throw new Error(entregaData?.error ?? "No fue posible crear la entrega.");
+      }
+
       setCartItems([]);
       setQuantity(null);
       setCustomerName("");
@@ -315,10 +360,20 @@ export default function Page() {
       setDocumentLookupMessage("");
       setFeedback({
         type: "success",
-        message: `Venta registrada para ${cliente}. Total: $${totalVenta.toLocaleString("es-CO")}`,
+        message: `Pedido #${pedidoId} registrado para ${cliente}. Total: $${totalVenta.toLocaleString("es-CO")}`,
       });
       await fetchInventoryProducts();
     } catch (error) {
+      for (const detalle of detallesRegistrados) {
+        await ajustarStockProducto(detalle.productId, detalle.quantity, "incrementar").catch(
+          (rollbackError) => {
+            console.error(
+              "[Vendedor] No fue posible revertir el stock tras un fallo posterior al registro",
+              rollbackError
+            );
+          }
+        );
+      }
       setFeedback({
         type: "error",
         message:
