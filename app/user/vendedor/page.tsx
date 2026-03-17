@@ -14,20 +14,10 @@ type InventorioProducto = {
   stock?: number;
 };
 
-type ventas = {
-  id: number;
-  productoId: number;
-  cantidad: number;
-  precioProducto: number;
-  subtotal: number;
-  fechaPago: string | null;
-  estado: string | null;
-  nombreCliente: string | null;
-};
-
 export default function Page() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerCity, setCustomerCity] = useState("");
   const [customerDocument, setCustomerDocument] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerUserId, setCustomerUserId] = useState<number | null>(null);
@@ -39,16 +29,12 @@ export default function Page() {
   const [quantity, setQuantity] = useState<number | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
-  const [showSalesModal, setShowSalesModal] = useState(false);
   const [inventorioProductos, setinventorioProductos] = useState<InventorioProducto[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState("");
   const [inventorySearch, setInventorySearch] = useState("");
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
-  const [ventasRecords, setventasRecords] = useState<ventas[]>([]);
-  const [salesLoading, setSalesLoading] = useState(false);
-  const [salesError, setSalesError] = useState("");
   const [stockError, setStockError] = useState("");
   const [registering, setRegistering] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -117,6 +103,7 @@ export default function Page() {
       if (!hasDocument) {
         setCustomerDocument("");
         setCustomerUserId(null);
+        setCustomerCity("");
         setDocumentLookupError("");
         setDocumentLookupMessage("");
       }
@@ -222,10 +209,10 @@ export default function Page() {
 
   // Registrar venta
   const RegistrarVenta = async () => {
-    if (!customerName || !customerPhone || !customerAddress || cartItems.length === 0) {
+    if (!customerName || !customerPhone || !customerCity || !customerAddress || cartItems.length === 0) {
       setFeedback({
         type: "error",
-        message: "Completa los datos del cliente y agrega un producto.",
+        message: "Completa nombre, telefono, ciudad, direccion y agrega un producto.",
       });
       return;
     }
@@ -243,6 +230,7 @@ export default function Page() {
     const totalVenta = totalAmount;
     const customerNameValue = customerName.trim();
     const customerPhoneValue = customerPhone.trim();
+    const customerCityValue = customerCity.trim();
     const customerAddressValue = customerAddress.trim();
     const cliente = customerNameValue;
     const detallesRegistrados: Array<{ productId: number; quantity: number }> = [];
@@ -332,6 +320,7 @@ export default function Page() {
 
       const entregaPayload: Record<string, unknown> = {
         idPedido: Number(pedidoId),
+        ciudad: customerCityValue,
         direccionEntrega: customerAddressValue,
         telefonoContacto: customerPhoneValue,
         nombreRecibe: customerNameValue,
@@ -353,6 +342,7 @@ export default function Page() {
       setQuantity(null);
       setCustomerName("");
       setCustomerPhone("");
+      setCustomerCity("");
       setCustomerDocument("");
       setCustomerAddress("");
       setCustomerUserId(null);
@@ -475,50 +465,7 @@ export default function Page() {
     };
   }, []);
 
-  // Obtener registros de ventas
-  const fetchSalesRecords = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!vendedorId) {
-        setSalesError("Debes iniciar sesion como vendedor para ver tus ventas.");
-        return;
-      }
-      try {
-        setSalesLoading(true);
-        setSalesError("");
-        const res = await fetch("/api/Detallepedido", { signal, cache: "no-store" });
-        if (!res.ok) {
-          throw new Error("No fue posible obtener las ventas.");
-        }
-        const json = await res.json();
-        const data: any[] = Array.isArray(json?.data) ? json.data : [];
-        const records: ventas[] = data
-          .filter((item) => Number(item.idVendedor ?? item.idvendedor) === vendedorId)
-          .map((item) => ({
-            id: Number(item.id),
-            productoId: Number(item.productoId ?? item.id_producto ?? 0),
-            cantidad: Number(item.cantidad ?? 0),
-            precioProducto: Number(item.precioProducto ?? item.precioproducto ?? 0),
-            subtotal: Number(item.subtotal ?? (item.cantidad ?? 0) * (item.precioProducto ?? 0)),
-            fechaPago: typeof item.fechaPago === "string" ? item.fechaPago : null,
-            estado: typeof item.estado === "string" ? item.estado : null,
-            nombreCliente:
-              typeof item.nombreCliente === "string"
-                ? item.nombreCliente
-                : typeof item.nombre_cliente === "string"
-                  ? item.nombre_cliente
-                  : null,
-          }));
-        setventasRecords(records);
-      } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        setSalesError((error as Error).message ?? "Error al cargar las ventas.");
-      } finally {
-        setSalesLoading(false);
-      }
-    },
-    [vendedorId]
-  );
-
+  
   // Reset busqueda al abrir inventario
   useEffect(() => {
     if (showInventoryModal) {
@@ -567,19 +514,13 @@ export default function Page() {
       fetchInventoryProducts();
     }
   };
-
-  const handleSalesButtonClick = () => {
-    setShowSalesModal(true);
-    if (!ventasRecords.length && !salesLoading) {
-      fetchSalesRecords();
-    }
-  };
-
+  
   const buscarClientePorDocumento = useCallback(async () => { if (!customerHasDocument) { return;}
   
     const documento = customerDocument.trim();
     if (!documento) {
       setCustomerUserId(null);
+      setCustomerCity("");
       setDocumentLookupError("");
       setDocumentLookupMessage("");
       return;
@@ -621,6 +562,10 @@ export default function Page() {
               const detalle = detalleJson?.data;
               if (typeof detalle?.telefono === "string" && detalle.telefono.trim()) {
                 setCustomerPhone((prev) => (prev ? prev : detalle.telefono.trim()));
+                detallesCompletados = true;
+              }
+              if (typeof detalle?.ciudad === "string" && detalle.ciudad.trim()) {
+                setCustomerCity((prev) => (prev ? prev : detalle.ciudad.trim()));
                 detallesCompletados = true;
               }
               if (typeof detalle?.direccion === "string" && detalle.direccion.trim()) {
@@ -697,13 +642,7 @@ export default function Page() {
               >
                 Ver inventario
               </button>
-              <button
-                type="button"
-                onClick={handleSalesButtonClick}
-                className="inline-flex items-center justify-center rounded-full border border-emerald-600 px-5 py-2 text-sm font-semibold text-emerald-600 transition hover:border-emerald-400 hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-              >
-                Ver ventas realizadas
-              </button>
+
             </div>
           </div>
           <p className="text-sm text-slate-500">
@@ -758,7 +697,7 @@ export default function Page() {
                     }
                   }}
                   placeholder={
-                    customerHasDocument ? "Documento del cliente" : "Documento no requerido"
+                    customerHasDocument ? "Documento" : "Documento no requerido"
                   }
                   disabled={!customerHasDocument}
                   className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
@@ -791,7 +730,7 @@ export default function Page() {
                   type="text"
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
-                  placeholder="Nombre del cliente"
+                  placeholder="Nombre"
                   className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
                 />
               </label>
@@ -808,11 +747,22 @@ export default function Page() {
               </label>
 
               <label className="flex flex-col text-sm font-medium text-slate-600">
+                Ciudad
+                <input
+                  type="text"
+                  value={customerCity}
+                  onChange={(event) => setCustomerCity(event.target.value)}
+                  placeholder="Ciudad"
+                  className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
+                />
+              </label>
+
+              <label className="flex flex-col text-sm font-medium text-slate-600">
                 Dirección
                 <textarea
                   value={customerAddress}
                   onChange={(event) => setCustomerAddress(event.target.value)}
-                  placeholder="Ciudad y dirección completa"
+                  placeholder="Direccion"
                   className="mt-1 rounded-lg border border-slate-200 px-3 py-2 text-base text-slate-800 outline-none"
                 />
               </label>
@@ -1023,38 +973,26 @@ export default function Page() {
             </div>
           )}
 
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600">
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-400">
             <div className="grid gap-5 xl:grid-cols-[1.2fr_0.9fr]">
               <div className="space-y-5">
                 <div>
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Configuracion de entrega
-                      </p>
-                      <h3 className="mt-1 text-base font-semibold text-slate-800">
-                        Define como se despacha este pedido
-                      </h3>
-                    </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm">
-                      Solo diseno
-                    </span>
+                    <div> <h3 className="mt-1 text-base font-semibold text-slate-800"> Despacho del pedido  </h3></div>
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <label className="group cursor-pointer rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100/70">
+                    <label className="group cursor-pointer rounded-2xl border border-sky-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-100/70">
                       <div className="flex items-start gap-3">
                         <input
                           type="radio"
                           name="tipoEntregaPreview"
                           defaultChecked
-                          className="mt-1 h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          className="mt-1 h-4 w-4 border-slate-300 text-sky-600 focus:ring-sky-500"
                         />
                         <div>
-                          <p className="font-semibold text-emerald-900">Domicilio</p>
-                          <p className="mt-1 text-xs leading-5 text-emerald-800/80">
-                            Entrega con asignacion de domiciliario y costo de envio.
-                          </p>
+                          <p className="font-semibold text-sky-900">Domicilio</p>
+                        
                         </div>
                       </div>
                     </label>
@@ -1068,9 +1006,7 @@ export default function Page() {
                         />
                         <div>
                           <p className="font-semibold text-slate-800">Retiro en tienda</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            El cliente recoge el pedido directamente en el punto de venta.
-                          </p>
+                        
                         </div>
                       </div>
                     </label>
@@ -1082,37 +1018,32 @@ export default function Page() {
                     Domiciliario
                     <select
                       defaultValue=""
-                      className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                      className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                     >
                       <option value="" disabled>
                         Selecciona un domiciliario
                       </option>
                       <option value="dom-1">Domiciliario 1</option>
                       <option value="dom-2">Domiciliario 2</option>
-                      <option value="dom-3">Domiciliario 3</option>
                     </select>
-                    <span className="mt-2 text-xs text-slate-400">
-                      Vista previa del selector. Luego se llenara con datos reales.
-                    </span>
+
                   </label>
 
                   <label className="flex flex-col text-sm font-medium text-slate-600">
                     Tipo de pago
                     <select
                       defaultValue=""
-                      className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                      className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                     >
                       <option value="" disabled>
-                        Selecciona una forma de pago
+                        Selecciona un tipo de pago
                       </option>
                       <option value="efectivo">Efectivo</option>
                       <option value="transferencia">Transferencia</option>
                       <option value="tarjeta">Tarjeta</option>
-                      <option value="contraentrega">Contra entrega</option>
+                      <option value="contraentrega">Contraentrega</option>
                     </select>
-                    <span className="mt-2 text-xs text-slate-400">
-                      Campo visual para conectar despues con la logica del pedido.
-                    </span>
+
                   </label>
                 </div>
               </div>
@@ -1120,7 +1051,7 @@ export default function Page() {
               <div className="flex h-full flex-col justify-between rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    Resumen final
+                    Confirmación de compra
                   </p>
                   <div className="mt-4 space-y-3">
                     <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
@@ -1131,7 +1062,7 @@ export default function Page() {
                     </div>
                     <div className="flex items-center justify-between rounded-xl border border-dashed border-slate-200 px-4 py-3 text-slate-400">
                       <span>Costo envio</span>
-                      <span>Pendiente</span>
+                    
                     </div>
                   </div>
                 </div>
@@ -1258,89 +1189,7 @@ export default function Page() {
           </div>
         </div>
       )}
-
-      {showSalesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-4 py-8 text-slate-700">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b pb-4">
-              <div>
-                <h3 className="text-2xl font-bold text-slate-900">Ventas registradas</h3>
-              </div>
-              <button
-                type="button"
-                aria-label="Cerrar ventas"
-                onClick={() => setShowSalesModal(false)}
-                className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-900"
-              >
-                X
-              </button>
-            </div>
-
-            <div className="mt-4 max-h-[60vh] overflow-y-auto">
-              {salesLoading ? (
-                <p className="text-center text-sm text-slate-500">Cargando ventas...</p>
-              ) : salesError ? (
-                <div className="mx-auto max-w-md rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  <p>{salesError}</p>
-                  <button
-                    type="button"
-                    onClick={() => fetchSalesRecords()}
-                    className="mt-2 text-xs font-semibold text-rose-700 underline"
-                  >
-                    Intentar de nuevo
-                  </button>
-                </div>
-              ) : !vendedorId ? (
-                <p className="text-center text-sm text-slate-500">
-                  No se pudo determinar el vendedor activo. Intenta nuevamente.
-                </p>
-              ) : ventasRecords.length === 0 ? (
-                <p className="text-center text-sm text-slate-500">
-                  No hay ventas registradas para este vendedor.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full table-auto text-left text-sm">
-                    <thead>
-                      <tr className="text-xs uppercase tracking-wide text-slate-400">
-                        <th className="py-2">Producto</th>
-                        <th className="py-2">Cliente</th>
-                        <th className="py-2 text-right">Cantidad</th>
-                        <th className="py-2 text-right">Total</th>
-                        <th className="py-2 text-right">Fecha</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ventasRecords.map((venta) => {
-                        const fecha = venta.fechaPago ? new Date(venta.fechaPago) : null;
-                        const total =
-                          Number.isFinite(venta.subtotal) && venta.subtotal > 0
-                            ? venta.subtotal
-                            : venta.cantidad * venta.precioProducto;
-                        return (
-                          <tr key={venta.id} className="border-t border-slate-100">
-                            <td className="py-3 font-semibold text-slate-800">
-                              {getProductName(venta.productoId)}
-                            </td>
-                            <td className="py-3 text-slate-600">{venta.nombreCliente ?? "Sin nombre"}</td>
-                            <td className="py-3 text-right font-semibold text-slate-900">{venta.cantidad}</td>
-                            <td className="py-3 text-right font-semibold text-slate-900">
-                              ${total.toLocaleString("es-CO")}
-                            </td>
-                            <td className="py-3 text-right text-xs text-slate-500">
-                              {fecha ? fecha.toLocaleString("es-CO") : "Sin fecha"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      
     </section>
   );
 }
