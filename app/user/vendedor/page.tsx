@@ -20,6 +20,8 @@ export default function Page() {
   const [customerCity, setCustomerCity] = useState("");
   const [customerDocument, setCustomerDocument] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
+  const [deliveryType, setDeliveryType] = useState<"Domicilio" | "Retiro_tienda">("Domicilio");
+  const [paymentType, setPaymentType] = useState("");
   const [customerUserId, setCustomerUserId] = useState<number | null>(null);
   const [documentLookupLoading, setDocumentLookupLoading] = useState(false);
   const [documentLookupError, setDocumentLookupError] = useState("");
@@ -232,15 +234,25 @@ export default function Page() {
     const customerPhoneValue = customerPhone.trim();
     const customerCityValue = customerCity.trim();
     const customerAddressValue = customerAddress.trim();
+    const paymentTypeValue = paymentType.trim();
     const cliente = customerNameValue;
     const detallesRegistrados: Array<{ productId: number; quantity: number }> = [];
 
     try {
+      const estadoPedido = paymentTypeValue === "efectivo" ? "Entregado" : "Pendiente";
+      const paymentTypeLabelMap: Record<string, string> = {
+        efectivo: "Efectivo",
+        transferencia: "Transferencia",
+        tarjeta: "Tarjeta",
+        contraentrega: "Contraentrega",
+      };
+      const paymentTypeLabel = paymentTypeValue ? paymentTypeLabelMap[paymentTypeValue] ?? paymentTypeValue : null;
+
       const pedidoPayload: Record<string, unknown> = {
         subtotal: Number(totalVenta),
         costoEnvio: 0,
-        tipoEntrega: "Domicilio",
-        estadoPedido: "Pendiente",
+        tipoEntrega: deliveryType,
+        estadoPedido,
       };
 
       if (Number.isInteger(customerUserId) && customerUserId !== null && customerUserId > 0) {
@@ -326,6 +338,7 @@ export default function Page() {
         nombreRecibe: customerNameValue,
         costoEnvio: 0,
         estadoEntrega: "Pendiente",
+        observacion: paymentTypeLabel,
       };
 
       const entregaRes = await fetch("/api/entrega", {
@@ -345,6 +358,7 @@ export default function Page() {
       setCustomerCity("");
       setCustomerDocument("");
       setCustomerAddress("");
+      setPaymentType("");
       setCustomerUserId(null);
       setDocumentLookupError("");
       setDocumentLookupMessage("");
@@ -987,7 +1001,8 @@ export default function Page() {
                         <input
                           type="radio"
                           name="tipoEntregaPreview"
-                          defaultChecked
+                          checked={deliveryType === "Domicilio"}
+                          onChange={() => setDeliveryType("Domicilio")}
                           className="mt-1 h-4 w-4 border-slate-300 text-sky-600 focus:ring-sky-500"
                         />
                         <div>
@@ -1002,6 +1017,8 @@ export default function Page() {
                         <input
                           type="radio"
                           name="tipoEntregaPreview"
+                          checked={deliveryType === "Retiro_tienda"}
+                          onChange={() => setDeliveryType("Retiro_tienda")}
                           className="mt-1 h-4 w-4 border-slate-300 text-sky-600 focus:ring-sky-500"
                         />
                         <div>
@@ -1029,12 +1046,13 @@ export default function Page() {
 
                   </label>
 
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Tipo de pago
-                    <select
-                      defaultValue=""
-                      className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                    >
+                    <label className="flex flex-col text-sm font-medium text-slate-600">
+                      Tipo de pago
+                      <select
+                        value={paymentType}
+                        onChange={(event) => setPaymentType(event.target.value)}
+                        className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                      >
                       <option value="" disabled>
                         Selecciona un tipo de pago
                       </option>
@@ -1042,6 +1060,7 @@ export default function Page() {
                       <option value="transferencia">Transferencia</option>
                       <option value="tarjeta">Tarjeta</option>
                       <option value="contraentrega">Contraentrega</option>
+                      <option value="otro">PSE</option>
                     </select>
 
                   </label>
